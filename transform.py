@@ -10,6 +10,7 @@ import sys
 from langchain.document_loaders import (
     UnstructuredMarkdownLoader,
     UnstructuredURLLoader,
+    OnlinePDFLoader,
 )
 
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
@@ -26,7 +27,7 @@ def process_line(line, directory):
     if res:
         video_id = res.group(1)
         with open(os.path.join(directory, video_id + ".txt"), "w") as out_f:
-            print(f"writing {video_id}.txt", file=sys.stderr)
+            print(f"writing video transcript {video_id}.txt", file=sys.stderr)
             print(f"url=https://www.youtube.com/watch/{video_id}", file=out_f)
             try:
                 transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["en", "fr"])
@@ -41,18 +42,28 @@ def process_line(line, directory):
     else:
         res = HTTP_REGEX.search(line)
         if res:
-            print(f"found url {res.group(0)}", file=sys.stderr)
-            loader = UnstructuredURLLoader([res.group(0)])
-            output = loader.load()
+            url = res.group(0)
+            print(f"found url {url}", file=sys.stderr)
+            # replace http by https
+            if url.startswith("http://"):
+                url = url.replace("http://", "https://")
+                print(f"switched to {url}", file=sys.stderr)
+            if url.endswith(".pdf"):
+                try:
+                    output = OnlinePDFLoader(url).load()
+                except:
+                    output = None
+            else:
+                output = UnstructuredURLLoader([url]).load()
             if output:
                 # compute the output filename using the md5 hash of the url
-                hash = hashlib.md5(res.group(0).encode("utf-8")).hexdigest()
+                hash = hashlib.md5(url.encode("utf-8")).hexdigest()
                 with open(os.path.join(directory, hash + ".txt"), "w") as out_f:
                     print(f"writing {hash}.txt", file=sys.stderr)
                     print(f"url={res.group(0)}", file=out_f)
                     print(output[0].page_content, file=out_f)
             else:
-                print(f"unable to get url content for {res.group(0)}", file=sys.stderr)
+                print(f"unable to get url content for {url}", file=sys.stderr)
 
 
 def process_content(content, directory):
