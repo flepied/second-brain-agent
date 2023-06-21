@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-'''
-'''
+"""
+"""
 
 import hashlib
 import os
@@ -17,6 +17,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, _errors
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
 HTTP_REGEX = re.compile(r"https?://[^ ]+")
+IGNORED_REGEX = re.compile(r"^https://(docs.google.com|source.redhat.com)")
 
 
 def process_line(line, directory):
@@ -30,7 +31,9 @@ def process_line(line, directory):
             print(f"writing video transcript {video_id}.txt", file=sys.stderr)
             print(f"url=https://www.youtube.com/watch/{video_id}", file=out_f)
             try:
-                transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["en", "fr"])
+                transcript = YouTubeTranscriptApi.get_transcript(
+                    video_id, languages=["en", "fr"]
+                )
             except _errors.TranscriptsDisabled:
                 print(f"transcript disabled for video {video_id}", file=sys.stderr)
                 return
@@ -48,19 +51,33 @@ def process_line(line, directory):
             if url.startswith("http://"):
                 url = url.replace("http://", "https://")
                 print(f"switched to {url}", file=sys.stderr)
+            # skip private or local network urls
+            if (
+                url.startswith("https://192.168.")
+                or url.startswith("https://10.")
+                or url.startswith("https://127.")
+            ):
+                print(f"skipping private network url {url}", file=sys.stderr)
+                return
+            # skip urls that match the IGNORE_REGEX
+            if IGNORED_REGEX.match(url):
+                print(f"skipping ignored url {url}", file=sys.stderr)
+                return
             if url.endswith(".pdf"):
                 try:
                     output = OnlinePDFLoader(url).load()
                 except:
                     output = None
             else:
-                output = UnstructuredURLLoader([url]).load()
+                output = UnstructuredURLLoader(
+                    [url], continue_on_failure=True, encoding="UTF-8"
+                ).load()
             if output:
                 # compute the output filename using the md5 hash of the url
                 hash = hashlib.md5(url.encode("utf-8")).hexdigest()
                 with open(os.path.join(directory, hash + ".txt"), "w") as out_f:
                     print(f"writing {hash}.txt", file=sys.stderr)
-                    print(f"url={res.group(0)}", file=out_f)
+                    print(f"url={url}", file=out_f)
                     print(output[0].page_content, file=out_f)
             else:
                 print(f"unable to get url content for {url}", file=sys.stderr)
@@ -96,12 +113,12 @@ def main(in_dir, out_dir):
             print(output.page_content, file=out_f)
         # support UTF-8 and latin-1 encodings
         try:
-            with open(fname, encoding='utf-8') as in_f:
+            with open(fname, encoding="utf-8") as in_f:
                 process_content(in_f.read(-1), out_dir)
         except Exception:
-            with open(fname, encoding='latin-1') as in_f:
+            with open(fname, encoding="latin-1") as in_f:
                 process_content(in_f.read(-1), out_dir)
-            
+
         # set the timestamp to be the same
         stat = os.stat(fname)
         os.utime(oname, (stat.st_atime, stat.st_mtime))
