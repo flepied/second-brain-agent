@@ -23,10 +23,13 @@ cd $(dirname "$0") || exit 1
 
 if [ ! -d .venv ]; then
     python -m venv .venv
+    . .venv/bin/activate
     pip install -r requirements.txt
+else
+    . .venv/bin/activate
 fi
 
-. .venv/bin/activate
+
 
 "$TRANSFORM" "$SRC" "$DST"
 

@@ -11,10 +11,15 @@ import sys
 from dotenv import load_dotenv
 
 from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceHubEmbeddings
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+from chromadb.config import Settings
+
 
 REPO_ID = "sentence-transformers/all-mpnet-base-v2"
+CHUNK_SIZE = 500
+CHUNK_OVERLAP = 50
 
 
 def process_file(fname, out_dir):
@@ -33,14 +38,26 @@ def process_file(fname, out_dir):
     except FileNotFoundError:
         pass
     content = open(fname).read(-1)
-    text_splitter = CharacterTextSplitter()
-    hf = HuggingFaceHubEmbeddings()
-    db = Chroma(persist_directory=os.path.join(out_dir, "Db"), embedding_function=hf)
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
+    )
+    # Define the Chroma settings
+    CHROMA_SETTINGS = Settings(
+        chroma_db_impl="duckdb+parquet",
+        persist_directory=os.path.join(out_dir, "Db"),
+        anonymized_telemetry=False,
+    )
+    hf = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    db = Chroma(
+        persist_directory=os.path.join(out_dir, "Db"),
+        embedding_function=hf,
+        client_settings=CHROMA_SETTINGS,
+    )
     n = 0
     for chunk in text_splitter.split_text(content):
         n = n + 1
         id = f"{basename}-{n:04d}.txt"
-        print(f"adding chunk {id} to the db")
+        print(f"adding chunk {id} to the db", file=sys.stderr)
         db.add_texts(texts=[chunk], ids=[id])
         oname = os.path.join(out_dir, "Chunk", id)
         print(f"writing {oname}", file=sys.stderr)
@@ -49,6 +66,7 @@ def process_file(fname, out_dir):
         # set the timestamp to be the same
         stat = os.stat(fname)
         os.utime(oname, (stat.st_atime, stat.st_mtime))
+    db.persist()
 
 
 def main(in_dir, out_dir):
