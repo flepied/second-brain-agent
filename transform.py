@@ -10,7 +10,7 @@ import sys
 from langchain.document_loaders import (
     UnstructuredMarkdownLoader,
     UnstructuredURLLoader,
-    OnlinePDFLoader,
+    PyMuPDFLoader,
 )
 
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
@@ -27,19 +27,23 @@ def process_line(line, directory):
     res = YOUTUBE_REGEX.search(line)
     if res:
         video_id = res.group(1)
-        with open(os.path.join(directory, video_id + ".txt"), "w") as out_f:
-            print(f"writing video transcript {video_id}.txt", file=sys.stderr)
+        transcript_path = os.path.join(directory, "Text", video_id + ".txt")
+        if os.path.exists(transcript_path):
+            print(f"transcript already exists for video {video_id}", file=sys.stderr)
+            return
+        try:
+            transcript = YouTubeTranscriptApi.get_transcript(
+                video_id, languages=["en", "fr"]
+            )
+        except _errors.TranscriptsDisabled:
+            print(f"transcript disabled for video {video_id}", file=sys.stderr)
+            return
+        except _errors.NoTranscriptFound:
+            print(f"no transcript found for video {video_id}", file=sys.stderr)
+            return
+        print(f"writing video transcript {video_id}.txt", file=sys.stderr)
+        with open(transcript_path, "w") as out_f:
             print(f"url=https://www.youtube.com/watch/{video_id}", file=out_f)
-            try:
-                transcript = YouTubeTranscriptApi.get_transcript(
-                    video_id, languages=["en", "fr"]
-                )
-            except _errors.TranscriptsDisabled:
-                print(f"transcript disabled for video {video_id}", file=sys.stderr)
-                return
-            except _errors.NoTranscriptFound:
-                print(f"no transcript found for video {video_id}", file=sys.stderr)
-                return
             for entry in transcript:
                 print(entry["text"], file=out_f)
     else:
@@ -63,9 +67,15 @@ def process_line(line, directory):
             if IGNORED_REGEX.match(url):
                 print(f"skipping ignored url {url}", file=sys.stderr)
                 return
+            # compute the output filename using the md5 hash of the url
+            hash = hashlib.md5(url.encode("utf-8")).hexdigest()
+            output_path = os.path.join(directory, "Text", hash + ".txt")
+            if os.path.exists(output_path):
+                print(f"file already exists for {output_path}", file=sys.stderr)
+                return
             if url.endswith(".pdf"):
                 try:
-                    output = OnlinePDFLoader(url).load()
+                    output = PyMuPDFLoader(url).load()
                 except:
                     output = None
             else:
@@ -73,9 +83,7 @@ def process_line(line, directory):
                     [url], continue_on_failure=True, encoding="UTF-8"
                 ).load()
             if output:
-                # compute the output filename using the md5 hash of the url
-                hash = hashlib.md5(url.encode("utf-8")).hexdigest()
-                with open(os.path.join(directory, hash + ".txt"), "w") as out_f:
+                with open(output_path, "w") as out_f:
                     print(f"writing {hash}.txt", file=sys.stderr)
                     print(f"url={url}", file=out_f)
                     print(output[0].page_content, file=out_f)
@@ -98,7 +106,7 @@ def main(in_dir, out_dir):
             continue
         fname = os.path.join(in_dir, entry.name)
         ftime = os.stat(fname).st_mtime
-        oname = os.path.join(out_dir, os.path.basename(fname[:-3]) + ".txt")
+        oname = os.path.join(out_dir, "Text", os.path.basename(fname[:-3]) + ".txt")
         # do not write if the timestamps are the same
         try:
             otime = os.stat(oname).st_mtime

@@ -13,6 +13,8 @@ fi
 
 . .venv/bin/activate
 
+mkdir -p "$DST/Orig" "$DST/Text"
+
 ./transform.py "$SRC" "$DST"
 
 inotifywait -m -e CLOSE_WRITE "$SRC"|while read line; do echo "$line"; ./transform.py "$SRC" "$DST"; done
