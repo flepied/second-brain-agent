@@ -1,10 +1,16 @@
 #!/usr/bin/env python
+
 """
+Transform markdown files from a directory or filenames read on the
+standard input into text files and read the content of these markdown
+files to extract url, youtube videos and pdf and transform them into
+text files too.
 """
 
 import hashlib
 import os
 import re
+import shutil
 import sys
 
 from langchain.document_loaders import (
@@ -75,7 +81,17 @@ def process_line(line, directory):
                 return
             if url.endswith(".pdf"):
                 try:
-                    output = PyMuPDFLoader(url).load()
+                    loader = PyMuPDFLoader(url)
+                    output = loader.load()
+                    # save pdf to the Orig directory
+                    shutil.copyfile(
+                        loader.file_path,
+                        os.path.join(
+                            directory,
+                            "Orig",
+                            os.path.basename(url),
+                        ),
+                    )
                 except:
                     output = None
             else:
@@ -96,43 +112,54 @@ def process_content(content, directory):
         process_line(line, directory)
 
 
+def process_file(fname, out_dir):
+    print(f"processing '{fname}'", file=sys.stderr)
+    if not fname.endswith(".md"):
+        print(f"Ignoring non md file {fname}", file=sys.stderr)
+        return
+    ftime = os.stat(fname).st_mtime
+    oname = os.path.join(out_dir, "Text", os.path.basename(fname[:-3]) + ".txt")
+    # do not write if the timestamps are the same
+    try:
+        otime = os.stat(oname).st_mtime
+        if otime == ftime:
+            return
+    except FileNotFoundError:
+        pass
+    print(f"writing {oname}", file=sys.stderr)
+    loader = UnstructuredMarkdownLoader(fname)
+    output = loader.load()[0]
+    with open(oname, "w") as out_f:
+        print(output.page_content, file=out_f)
+    # support UTF-8 and latin-1 encodings
+    try:
+        with open(fname, encoding="utf-8") as in_f:
+            process_content(in_f.read(-1), out_dir)
+    except Exception:
+        with open(fname, encoding="latin-1") as in_f:
+            process_content(in_f.read(-1), out_dir)
+
+    # set the timestamp to be the same
+    stat = os.stat(fname)
+    os.utime(oname, (stat.st_atime, stat.st_mtime))
+
+
 def main(in_dir, out_dir):
     excpt = os.getenv("IGNORE_REGEXP", None)
     if excpt:
         excpt = re.compile(excpt)
-    # sync in -> out to create the new files
-    for entry in os.scandir(in_dir):
-        if not entry.name.endswith(".md"):
-            continue
-        fname = os.path.join(in_dir, entry.name)
-        ftime = os.stat(fname).st_mtime
-        oname = os.path.join(out_dir, "Text", os.path.basename(fname[:-3]) + ".txt")
-        # do not write if the timestamps are the same
-        try:
-            otime = os.stat(oname).st_mtime
-            if otime == ftime:
-                continue
-        except FileNotFoundError:
-            pass
-        print(f"writing {oname}", file=sys.stderr)
-        loader = UnstructuredMarkdownLoader(fname)
-        output = loader.load()[0]
-        with open(oname, "w") as out_f:
-            print(output.page_content, file=out_f)
-        # support UTF-8 and latin-1 encodings
-        try:
-            with open(fname, encoding="utf-8") as in_f:
-                process_content(in_f.read(-1), out_dir)
-        except Exception:
-            with open(fname, encoding="latin-1") as in_f:
-                process_content(in_f.read(-1), out_dir)
-
-        # set the timestamp to be the same
-        stat = os.stat(fname)
-        os.utime(oname, (stat.st_atime, stat.st_mtime))
+    # read filenames from stdin
+    if in_dir == "-":
+        print("Reading filenames from stdin", file=sys.stderr)
+        for fname in sys.stdin:
+            process_file(fname.rstrip(), out_dir)
+    else:
+        # scan input dir
+        for entry in os.scandir(in_dir):
+            process_file(os.path.join(in_dir, entry.name), out_dir)
 
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
 
-# transform.py ends here
+# transform_md.py ends here

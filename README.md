@@ -31,7 +31,7 @@ $ cp example.env .env
 
 ### systemd services
 
-To install systemd services to monitor manage automatically the different scripts when the operating system starts, use the following command (need sudo access):
+To install systemd services to manage automatically the different scripts when the operating system starts, use the following command (need sudo access):
 
 ```ShellSession
 $ ./install-systemd-services.sh

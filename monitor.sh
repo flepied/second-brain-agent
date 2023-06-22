@@ -30,8 +30,8 @@ fi
 
 mkdir -p "$DST/Orig" "$DST/Text"
 
-./transform.py "$SRC" "$DST"
+"$TRANSFORM" "$SRC" "$DST"
 
-inotifywait -m -e CLOSE_WRITE "$SRC"|while read line; do echo "$line"; "$TRANSFORM" "$SRC" "$DST"; done
+inotifywait -m -e CLOSE_WRITE "$SRC"|while read dir event fname; do echo "${dir}${fname} $event" 1>&2; echo "${dir}${fname}"; done | "$TRANSFORM" "-" "$DST"
 
 # monitor.sh ends here
