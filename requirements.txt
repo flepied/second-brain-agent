@@ -1,3 +1,4 @@
 youtube-transcript-api
 langchain
 unstructured
+python-dotenv

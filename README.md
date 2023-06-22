@@ -1,38 +1,44 @@
-# tools to transform markdown files compatible with Obsidian to content files
+# Second Brain AI agent
 
-Transforms markdown files compatible with Obsidian into content files extracting url automatically to get the content of the web page and the transcript of youtube videos as additional content.
+The system takes as input a directory where you store your markdown notes for your second brain. For example I take my notes with [Obsidian](https://obsidian.md/). The system then processes any change in these files with the following pipeline:
 
-## service
-
-Create a service file in `/etc/systemd/system/md2content.service` replacing `fred` by your user:
-
-```ini
-[Unit]
-Description=Transform Markdown docs, pdf and Youtube transcripts for fred into text files
-DefaultDependencies=no
-After=network.target
-
-[Service]
-Type=simple
-User=fred
-Group=fred
-ExecStart=/home/fred/perso/md2content/service.sh
-TimeoutStartSec=0
-RemainAfterExit=yes
-
-[Install]
-WantedBy=default.target
+```mermaid
+graph TD
+A[Markdown files from Obsidian]-->B[Text files from markdown and pointers]-->C[Vector Database]-->D[PKM AI Agent]
 ```
 
-Then add the service, with:
+From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file it extracts pdf, url, youtube video and transforms them into text.
+
+From these text files, [transform_txt.py](transform_txt.py) breaks these text files into chunks, create a vector embeddings and then stores these vector embeddings into a vector database.
+
+The second brain agent is using the vector database to answer questions about your documents using a large language model.
+
+## Installation
+
+You need a Python interpreter. All this has been tested with Python 3.11 under Fedora Linux 38. Let me know if it work for you on your system.
+
+Get the source code:
 
 ```ShellSession
-# systemctl enable /etc/systemd/system/md2content.service
-# systemctl start md2content
+$ git clone https://github.com/flepied/second-brain-agent.git
+```
+
+Copy the example .env file and edit it to suit your settings:
+
+```ShellSession
+$ cp example.env .env
+```
+
+### systemd services
+
+To install systemd services to monitor manage automatically the different scripts when the operating system starts, use the following command (need sudo access):
+
+```ShellSession
+$ ./install-systemd-services.sh
 ```
 
 To see the output of the service:
 
 ```ShellSession
-$ journalctl -f --unit=md2content.service
+$ journalctl -f --unit=sba-md.service
 ```
