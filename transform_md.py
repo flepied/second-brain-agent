@@ -145,9 +145,6 @@ def process_file(fname, out_dir):
 
 
 def main(in_dir, out_dir):
-    excpt = os.getenv("IGNORE_REGEXP", None)
-    if excpt:
-        excpt = re.compile(excpt)
     # read filenames from stdin
     if in_dir == "-":
         print("Reading filenames from stdin", file=sys.stderr)

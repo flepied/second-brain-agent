@@ -3,3 +3,5 @@ langchain
 unstructured
 python-dotenv
 pymupdf
+huggingface_hub
+chromadb

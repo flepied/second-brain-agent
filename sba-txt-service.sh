@@ -11,8 +11,8 @@ fi
 
 . .env
 
-mkdir -p "$DST/Orig" "$DST/Text"
+mkdir -p "$DSTDIR/Chunk" "$DSTDIR/Db"
 
-./monitor.sh ./transform_md.py "$SRCDIR" "$DSTDIR"
+./monitor.sh ./transform_txt.py "$DSTDIR/Text" "$DSTDIR"
 
-# sba-md-service.sh ends here
+# sba-txt-service.sh ends here

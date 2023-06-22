@@ -28,8 +28,6 @@ fi
 
 . .venv/bin/activate
 
-mkdir -p "$DST/Orig" "$DST/Text"
-
 "$TRANSFORM" "$SRC" "$DST"
 
 inotifywait -m -e CLOSE_WRITE "$SRC"|while read dir event fname; do echo "${dir}${fname} $event" 1>&2; echo "${dir}${fname}"; done | "$TRANSFORM" "-" "$DST"
