@@ -13,16 +13,25 @@ from dotenv import load_dotenv
 from langchain.vectorstores import Chroma
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.docstore.document import Document
 
-from chromadb.config import Settings
-
-
-REPO_ID = "sentence-transformers/all-mpnet-base-v2"
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
 
 
-def process_file(fname, out_dir):
+def create_indexer(out_dir):
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
+    )
+    embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    vectorstore = Chroma(
+        embedding_function=embedding,
+        persist_directory=os.path.join(out_dir, "Db"),
+    )
+    return vectorstore, text_splitter
+
+
+def process_file(fname, out_dir, indexer, splitter):
     print(f"Processing '{fname}'", file=sys.stderr)
     if not fname.endswith(".txt"):
         print(f"Ignoring non txt file {fname}", file=sys.stderr)
@@ -38,49 +47,41 @@ def process_file(fname, out_dir):
     except FileNotFoundError:
         pass
     content = open(fname).read(-1)
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
-    )
-    # Define the Chroma settings
-    CHROMA_SETTINGS = Settings(
-        chroma_db_impl="duckdb+parquet",
-        persist_directory=os.path.join(out_dir, "Db"),
-        anonymized_telemetry=False,
-    )
-    hf = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    db = Chroma(
-        persist_directory=os.path.join(out_dir, "Db"),
-        embedding_function=hf,
-        client_settings=CHROMA_SETTINGS,
-    )
+    metadatas = []
+    texts = []
     n = 0
-    for chunk in text_splitter.split_text(content):
+    for chunk in splitter.split_text(content):
         n = n + 1
         id = f"{basename}-{n:04d}.txt"
-        print(f"adding chunk {id} to the db", file=sys.stderr)
-        db.add_texts(texts=[chunk], ids=[id])
         oname = os.path.join(out_dir, "Chunk", id)
-        print(f"writing {oname}", file=sys.stderr)
+        texts.append(chunk)
+        metadatas.append({"url": f"file://{fname}", "source": oname})
         with open(oname, "w") as out_f:
             print(chunk, file=out_f)
         # set the timestamp to be the same
         stat = os.stat(fname)
         os.utime(oname, (stat.st_atime, stat.st_mtime))
-    db.persist()
+
+    if len(texts) == 0:
+        print(f"Unable to split doc {fname}", file=sys.stderr)
+    else:
+        print(f"Storing {len(texts)} chunks to the db for {fname}", file=sys.stderr)
+        indexer.add_texts(texts, metadatas)
 
 
 def main(in_dir, out_dir):
     print(f"Storing files under {out_dir}")
+    indexer, splitter = create_indexer(out_dir)
     # read filenames from stdin
     if in_dir == "-":
         print("Reading filenames from stdin", file=sys.stderr)
         for fname in sys.stdin:
-            process_file(fname.rstrip(), out_dir)
+            process_file(fname.rstrip(), out_dir, indexer, splitter)
     else:
         # scan input dir
         print(f"Looking up files in {in_dir}", file=sys.stderr)
         for entry in os.scandir(in_dir):
-            process_file(os.path.join(in_dir, entry.name), out_dir)
+            process_file(os.path.join(in_dir, entry.name), out_dir, indexer, splitter)
 
 
 if __name__ == "__main__":
