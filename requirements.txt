@@ -6,6 +6,6 @@ pymupdf
 chromadb
 huggingface_hub
 sentence_transformers
-gradio
+streamlit
 openai
 bs4

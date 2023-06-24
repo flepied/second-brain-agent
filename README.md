@@ -46,9 +46,16 @@ $ journalctl --unit=sba-txt.service
 
 ### Launching the web UI
 
-Launch this command to access the web UI on http://127.0.0.1:7860/ :
+Launch this command to access the web UI:
 
 ```ShellSession
-$ ./second_brain_agent.py
-Running on local URL:  http://127.0.0.1:7860
+$ streamlit run second_brain_agent.py
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8502
+  Network URL: http://192.168.121.112:8502
 ```
+
+Here is an example:
+
+![Screenshot](screenshot.png "Screenshot")

@@ -1,52 +1,54 @@
-#!/usr/bin/env python
-
-"""
-Web UI to interact with the second brain data
-"""
-
 import os
-import sys
 
+import streamlit as st
 from dotenv import load_dotenv
-
-from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
-
-# Front end web app
-import gradio as gr
+from langchain.memory import ConversationBufferMemory
+from langchain.chains import ConversationalRetrievalChain
+from htmlTemplates import css, bot_template, user_template
 
 from lib import get_vectorstore
 
 
-def main(out_dir):
-    db = get_vectorstore(out_dir)
-    # Initialise Langchain - Conversation Retrieval Chain
-    qa = ConversationalRetrievalChain.from_llm(
-        ChatOpenAI(temperature=0), db.as_retriever()
-    )
+def handle_userinput(user_question):
+    response = st.session_state.conversation({"question": user_question})
+    st.session_state.chat_history = response["chat_history"]
 
-    with gr.Blocks() as demo:
-        chatbot = gr.Chatbot()
-        msg = gr.Textbox()
-        clear = gr.Button("Clear")
-        chat_history = []
+    for i, message in enumerate(st.session_state.chat_history):
+        if i % 2 == 0:
+            st.write(
+                user_template.replace("{{MSG}}", message.content),
+                unsafe_allow_html=True,
+            )
+        else:
+            st.write(
+                bot_template.replace("{{MSG}}", message.content), unsafe_allow_html=True
+            )
 
-        def user(user_message, history):
-            print(f"{user_message=}", file=sys.stderr)
-            # Get response from QA chain
-            response = qa({"question": user_message, "chat_history": history})
-            # Append user message and response to chat history
-            history.append((user_message, response["answer"]))
-            return gr.update(value=""), history
 
-        msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False)
-        clear.click(lambda: None, None, chatbot, queue=False)
+def main():
+    load_dotenv()
+    st.set_page_config(page_title="Chat with your Second Brain", page_icon=":books:")
+    st.write(css, unsafe_allow_html=True)
 
-    demo.launch(debug=True)
+    if "conversation" not in st.session_state:
+        memory = ConversationBufferMemory(
+            memory_key="chat_history", return_messages=True
+        )
+        st.session_state.conversation = ConversationalRetrievalChain.from_llm(
+            ChatOpenAI(temperature=0),
+            get_vectorstore(os.environ["DSTDIR"]).as_retriever(),
+            memory=memory,
+        )
+
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = None
+
+    st.header("Chat with your Second Brain :brain:")
+    user_question = st.text_input("Ask a question to your second brain:")
+    if user_question:
+        handle_userinput(user_question)
 
 
 if __name__ == "__main__":
-    load_dotenv()
-    main(os.environ["DSTDIR"])
-
-# second_brain_agent.py ends here
+    main()
