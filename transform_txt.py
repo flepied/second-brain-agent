@@ -10,18 +10,16 @@ import sys
 
 from dotenv import load_dotenv
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import TokenTextSplitter
 
 from lib import get_vectorstore
 
-CHUNK_SIZE = 500
+CHUNK_SIZE = 2000
 CHUNK_OVERLAP = 50
 
 
 def get_splitter():
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
-    )
+    splitter = TokenTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
     return splitter
 
 
