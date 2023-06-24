@@ -37,8 +37,18 @@ To install systemd services to manage automatically the different scripts when t
 $ ./install-systemd-services.sh
 ```
 
-To see the output of the service:
+To see the output of the md and txt services:
 
 ```ShellSession
-$ journalctl -f --unit=sba-md.service
+$ journalctl --unit=sba-md.service
+$ journalctl --unit=sba-txt.service
+```
+
+### Launching the web UI
+
+Launch this command to access the web UI on http://127.0.0.1:7860/ :
+
+```ShellSession
+$ ./second_brain_agent.py
+Running on local URL:  http://127.0.0.1:7860
 ```
