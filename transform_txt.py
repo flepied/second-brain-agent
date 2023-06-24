@@ -10,25 +10,19 @@ import sys
 
 from dotenv import load_dotenv
 
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.docstore.document import Document
+
+from lib import get_vectorstore
 
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
 
 
-def create_indexer(out_dir):
-    text_splitter = RecursiveCharacterTextSplitter(
+def get_splitter():
+    splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
     )
-    embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    vectorstore = Chroma(
-        embedding_function=embedding,
-        persist_directory=os.path.join(out_dir, "Db"),
-    )
-    return vectorstore, text_splitter
+    return splitter
 
 
 def process_file(fname, out_dir, indexer, splitter):
@@ -71,7 +65,8 @@ def process_file(fname, out_dir, indexer, splitter):
 
 def main(in_dir, out_dir):
     print(f"Storing files under {out_dir}")
-    indexer, splitter = create_indexer(out_dir)
+    splitter = get_splitter()
+    indexer = get_vectorstore(out_dir)
     # read filenames from stdin
     if in_dir == "-":
         print("Reading filenames from stdin", file=sys.stderr)
