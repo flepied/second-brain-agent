@@ -1,5 +1,5 @@
 youtube-transcript-api
-langchain
+git+https://github.com/raymond-yuan/langchain.git@ryuan/relevance_refactor
 unstructured
 python-dotenv
 pymupdf

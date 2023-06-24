@@ -9,12 +9,8 @@ import sys
 
 from dotenv import load_dotenv
 
-from langchain.vectorstores import Chroma
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
-from langchain.embeddings import HuggingFaceEmbeddings
-
-from chromadb.config import Settings
 
 # Front end web app
 import gradio as gr
