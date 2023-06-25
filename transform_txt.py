@@ -14,7 +14,9 @@ from langchain.text_splitter import TokenTextSplitter
 
 from lib import get_vectorstore
 
-CHUNK_SIZE = 2000
+# limit chunk size to 1000 as we retrieve 4 documents by default and
+# the token limit is 4096
+CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 50
 
 
@@ -39,6 +41,11 @@ def process_file(fname, out_dir, indexer, splitter):
     except FileNotFoundError:
         pass
     content = open(fname).read(-1)
+    header = content.split("\n", 1)[0].split("=")
+    if len(header) == 2 and header[0] == "url":
+        url = header[1]
+    else:
+        url = f"file://{fname}"
     metadatas = []
     texts = []
     n = 0
@@ -47,7 +54,14 @@ def process_file(fname, out_dir, indexer, splitter):
         id = f"{basename}-{n:04d}.txt"
         oname = os.path.join(out_dir, "Chunk", id)
         texts.append(chunk)
-        metadatas.append({"url": f"file://{fname}", "source": oname})
+        metadatas.append(
+            {
+                "url": url,
+                "source": oname,
+                "part": id,
+                "main_source": fname,
+            }
+        )
         with open(oname, "w") as out_f:
             print(chunk, file=out_f)
         # set the timestamp to be the same
@@ -57,7 +71,7 @@ def process_file(fname, out_dir, indexer, splitter):
     if len(texts) == 0:
         print(f"Unable to split doc {fname}", file=sys.stderr)
     else:
-        print(f"Storing {len(texts)} chunks to the db for {fname}", file=sys.stderr)
+        print(f"Storing {len(texts)} chunks to the db for {url}", file=sys.stderr)
         indexer.add_texts(texts, metadatas)
 
 
