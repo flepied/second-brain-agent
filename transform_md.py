@@ -76,10 +76,10 @@ def process_line(line, directory):
             # compute the output filename using the md5 hash of the url
             hash = hashlib.md5(url.encode("utf-8")).hexdigest()
             output_path = os.path.join(directory, "Text", hash + ".txt")
-            if os.path.exists(output_path):
-                print(f"file already exists for {output_path}", file=sys.stderr)
-                return
             if url.endswith(".pdf"):
+                if os.path.exists(output_path):
+                    print(f"file already exists for {output_path}", file=sys.stderr)
+                    return
                 try:
                     loader = PyMuPDFLoader(url)
                     output = loader.load()
@@ -100,7 +100,7 @@ def process_line(line, directory):
                 ).load()
             if output:
                 with open(output_path, "w") as out_f:
-                    print(f"writing {hash}.txt", file=sys.stderr)
+                    print(f"writing {hash}.txt for {url}", file=sys.stderr)
                     print(f"url={url}", file=out_f)
                     print(output[0].page_content, file=out_f)
             else:
