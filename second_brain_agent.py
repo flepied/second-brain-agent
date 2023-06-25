@@ -26,10 +26,16 @@ def handle_userinput(user_question):
             )
 
 
+def clear_input_box():
+    handle_userinput(st.session_state["question"])
+    st.session_state["question"] = ""
+
+
 def main():
     load_dotenv()
-    st.set_page_config(page_title="Chat with your Second Brain", page_icon=":books:")
+    st.set_page_config(page_title="Chat with your Second Brain", page_icon=":brain:")
     st.write(css, unsafe_allow_html=True)
+    st.header("Chat with your Second Brain :brain:")
 
     if "conversation" not in st.session_state:
         memory = ConversationBufferMemory(
@@ -41,13 +47,14 @@ def main():
             memory=memory,
         )
 
+    st.text_input(
+        "Ask a question to your second brain:",
+        key="question",
+        on_change=clear_input_box,
+    )
+
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
-
-    st.header("Chat with your Second Brain :brain:")
-    user_question = st.text_input("Ask a question to your second brain:")
-    if user_question:
-        handle_userinput(user_question)
 
 
 if __name__ == "__main__":
