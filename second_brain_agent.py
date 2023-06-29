@@ -53,6 +53,18 @@ def main():
         on_change=clear_input_box,
     )
 
+    st.components.v1.html(
+        """
+<script>
+var input = window.parent.document.querySelectorAll("input[type=text]");
+
+        for (var i = 0; i < input.length; ++i) {{
+            input[i].focus();
+        }}
+</script>
+""",
+        height=150,
+    )
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
 
