@@ -44,6 +44,12 @@ $ journalctl --unit=sba-md.service
 $ journalctl --unit=sba-txt.service
 ```
 
+### Doing a similarity search with the vector database
+
+```ShellSession
+$ ./similarity.py "What is LangChain?"
+```
+
 ### Launching the web UI
 
 Launch this command to access the web UI:
