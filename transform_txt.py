@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from langchain.text_splitter import TokenTextSplitter
 
-from lib import get_vectorstore
+from lib import get_vectorstore, cleanup_text, init
 
 # limit chunk size to 1000 as we retrieve 4 documents by default and
 # the token limit is 4096
@@ -25,7 +25,7 @@ def get_splitter():
     return splitter
 
 
-def process_file(fname, out_dir, indexer, splitter):
+def process_file(fname: str, out_dir: str, indexer, splitter):
     print(f"Processing '{fname}'", file=sys.stderr)
     if not fname.endswith(".txt"):
         print(f"Ignoring non txt file {fname}", file=sys.stderr)
@@ -42,12 +42,14 @@ def process_file(fname, out_dir, indexer, splitter):
         pass
     content = open(fname).read(-1)
     header = content.split("\n", 1)[0].split("=")
+    content = cleanup_text(content)
     if len(header) == 2 and header[0] == "url":
         url = header[1]
     else:
         url = f"file://{fname}"
     metadatas = []
     texts = []
+    ids = []
     n = 0
     for chunk in splitter.split_text(content):
         n = n + 1
@@ -62,6 +64,7 @@ def process_file(fname, out_dir, indexer, splitter):
                 "main_source": fname,
             }
         )
+        ids.append(id)
         with open(oname, "w") as out_f:
             print(chunk, file=out_f)
         # set the timestamp to be the same
@@ -75,7 +78,7 @@ def process_file(fname, out_dir, indexer, splitter):
         indexer.add_texts(texts, metadatas)
 
 
-def main(in_dir, out_dir):
+def main(in_dir: str, out_dir: str):
     print(f"Storing files under {out_dir}")
     splitter = get_splitter()
     indexer = get_vectorstore(out_dir)
@@ -93,6 +96,7 @@ def main(in_dir, out_dir):
 
 if __name__ == "__main__":
     load_dotenv()
+    init(os.getenv("LANGS", "fr en").split(" "))
     main(sys.argv[1], sys.argv[2])
 
 # transform_txt.py ends here

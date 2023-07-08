@@ -4,7 +4,7 @@ The system takes as input a directory where you store your markdown notes for yo
 
 ```mermaid
 graph TD
-A[Markdown files from Obsidian]-->B[Text files from markdown and pointers]-->C[Vector Database]-->D[PKM AI Agent]
+A[Markdown files from Obsidian]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[PKM AI Agent]
 ```
 
 From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file it extracts pdf, url, youtube video and transforms them into text.

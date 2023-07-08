@@ -1,5 +1,6 @@
 youtube-transcript-api
 git+https://github.com/raymond-yuan/langchain.git@ryuan/relevance_refactor
+#git+https://github.com/flepied/langchain@relevance_refactor
 unstructured
 python-dotenv
 pymupdf
@@ -10,3 +11,5 @@ streamlit
 openai
 bs4
 tiktoken
+py3langid
+nltk
