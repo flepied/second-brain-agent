@@ -11,5 +11,3 @@ streamlit
 openai
 bs4
 tiktoken
-py3langid
-nltk

@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from langchain.text_splitter import TokenTextSplitter
 
-from lib import get_vectorstore, cleanup_text, init
+from lib import get_vectorstore, cleanup_text
 
 # limit chunk size to 1000 as we retrieve 4 documents by default and
 # the token limit is 4096
@@ -96,7 +96,6 @@ def main(in_dir: str, out_dir: str):
 
 if __name__ == "__main__":
     load_dotenv()
-    init(os.getenv("LANGS", "fr en").split(" "))
     main(sys.argv[1], sys.argv[2])
 
 # transform_txt.py ends here
