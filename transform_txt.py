@@ -48,7 +48,7 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
         url = header[1]
     else:
         url = f"file://{fname}"
-        content = full_content
+        content = cleanup_text(full_content)
     metadatas = []
     texts = []
     ids = []

@@ -18,8 +18,9 @@ def cleanup_text(x):
     - remove consecutive spaces
     - remove consecutive newlines
     """
-    x = re.sub(r"https?://\S+", " ", x)
+    x = re.sub(r"https?://\S+", "", x)
     x = x.replace("#", "")
+    x = re.sub(r"^[ \t]+$", "", x, flags=re.M)
     x = re.sub(r"[ \t]{2,}", " ", x)
     x = re.sub(r"\n{3,}", "\n\n", x)
     return x
