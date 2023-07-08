@@ -40,13 +40,15 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
             return
     except FileNotFoundError:
         pass
-    content = open(fname).read(-1)
-    header = content.split("\n", 1)[0].split("=")
+    full_content = open(fname).read(-1)
+    first_line, content = full_content.split("\n", 1)
+    header = first_line.split("=")
     content = cleanup_text(content)
     if len(header) == 2 and header[0] == "url":
         url = header[1]
     else:
         url = f"file://{fname}"
+        content = full_content
     metadatas = []
     texts = []
     ids = []
@@ -55,16 +57,15 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
         n = n + 1
         id = f"{basename}-{n:04d}.txt"
         oname = os.path.join(out_dir, "Chunk", id)
-        texts.append(chunk)
-        metadatas.append(
-            {
-                "url": url,
-                "source": oname,
-                "part": id,
-                "main_source": fname,
-            }
-        )
+        metadata = {
+            "url": url,
+            "source": oname,
+            "part": n,
+            "main_source": fname,
+        }
+        metadatas.append(metadata)
         ids.append(id)
+        texts.append(chunk)
         with open(oname, "w") as out_f:
             print(chunk, file=out_f)
         # set the timestamp to be the same
@@ -75,7 +76,8 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
         print(f"Unable to split doc {fname}", file=sys.stderr)
     else:
         print(f"Storing {len(texts)} chunks to the db for {url}", file=sys.stderr)
-        indexer.add_texts(texts, metadatas)
+        res_ids = indexer.add_texts(texts, metadatas, ids=ids)
+        print(f"ids={res_ids}", file=sys.stderr)
 
 
 def main(in_dir: str, out_dir: str):
