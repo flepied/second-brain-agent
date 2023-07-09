@@ -1,7 +1,7 @@
+"""Misc functions used in other scripts
+"""
 import os
 import re
-import string
-import sys
 
 from chromadb.config import Settings
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -9,30 +9,32 @@ from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain.vectorstores import Chroma
 
 
-def cleanup_text(x):
-    """Clean up text.
+def cleanup_text(text):
+    """Clean up tetextt.
 
     - remove urls
     - remove hashtag
     - remove consecutive spaces
     - remove consecutive newlines
     """
-    x = re.sub(r"https?://\S+", "", x)
-    x = x.replace("#", "")
-    x = re.sub(r"^[ \t]+$", "", x, flags=re.M)
-    x = re.sub(r"[ \t]{2,}", " ", x)
-    x = re.sub(r"\n{3,}", "\n\n", x)
-    return x
+    text = re.sub(r"https?://\S+", "", text)
+    text = text.replace("#", "")
+    text = re.sub(r"^[ \t]+$", "", text, flags=re.M)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text
 
 
 def get_embeddings():
+    "Get the vector embeddings for text"
     return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
 def get_vectorstore(out_dir):
+    "Get the vector store configured with persistence in {out_dir}/Db"
     db_dir = os.path.join(out_dir, "Db")
     # Define the Chroma settings
-    CHROMA_SETTINGS = Settings(
+    chroma_settings = Settings(
         chroma_db_impl="duckdb+parquet",
         persist_directory=db_dir,
         anonymized_telemetry=False,
@@ -40,13 +42,27 @@ def get_vectorstore(out_dir):
     vectorstore = Chroma(
         embedding_function=get_embeddings(),
         persist_directory=db_dir,
-        client_settings=CHROMA_SETTINGS,
+        client_settings=chroma_settings,
     )
     return vectorstore
 
 
 def get_indexer(out_dir):
+    "Get the indexer associated with the vector store"
     return VectorStoreIndexWrapper(vectorstore=get_vectorstore(out_dir))
+
+
+def is_same_time(fname, oname):
+    "compare if {fname} and {oname} have the same timestamp"
+    ftime = os.stat(fname).st_mtime
+    # do not write if the timestamps are the same
+    try:
+        otime = os.stat(oname).st_mtime
+        if otime == ftime:
+            return True
+    except FileNotFoundError:
+        pass
+    return False
 
 
 # lib.py ends here

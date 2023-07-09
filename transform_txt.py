@@ -11,7 +11,7 @@ import sys
 from dotenv import load_dotenv
 from langchain.text_splitter import TokenTextSplitter
 
-from lib import cleanup_text, get_vectorstore
+from lib import cleanup_text, get_vectorstore, is_same_time
 
 # limit chunk size to 1000 as we retrieve 4 documents by default and
 # the token limit is 4096
@@ -20,26 +20,40 @@ CHUNK_OVERLAP = 50
 
 
 def get_splitter():
+    "Return text splitter"
     splitter = TokenTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
     return splitter
 
 
-def process_file(fname: str, out_dir: str, indexer, splitter):
-    print(f"Processing '{fname}'", file=sys.stderr)
+# pylint: disable=too-many-arguments
+def process_chunk(chunk, url, fname, basename, number, out_dir):
+    "Process a chunk of text"
+    chunk_id = f"{basename}-{number:04d}.txt"
+    oname = os.path.join(out_dir, "Chunk", chunk_id)
+    metadata = {
+        "url": url,
+        "source": oname,
+        "part": number,
+        "main_source": fname,
+    }
+    with open(oname, "w", encoding="utf-8") as out_f:
+        print(chunk, file=out_f)
+    # set the timestamp to be the same
+    stat = os.stat(fname)
+    os.utime(oname, (stat.st_atime, stat.st_mtime))
+    return metadata, chunk_id
+
+
+def validate_and_extract_url(fname, basename, out_dir):
+    "Validate that the file name is ending in .txt and is not the same date as the first chunk"
     if not fname.endswith(".txt"):
         print(f"Ignoring non txt file {fname}", file=sys.stderr)
-        return
-    ftime = os.stat(fname).st_mtime
-    basename = os.path.basename(fname[:-4])
+        return False, None
     oname = os.path.join(out_dir, "Chunk", basename + "-0001.txt")
-    # do not write if the timestamps are the same
-    try:
-        otime = os.stat(oname).st_mtime
-        if otime == ftime:
-            return
-    except FileNotFoundError:
-        pass
-    full_content = open(fname).read(-1)
+    if is_same_time(fname, oname):
+        return False, None
+    with open(fname, encoding="utf-8") as in_stream:
+        full_content = in_stream.read(-1)
     first_line, content = full_content.split("\n", 1)
     header = first_line.split("=")
     content = cleanup_text(content)
@@ -48,28 +62,28 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
     else:
         url = f"file://{fname}"
         content = cleanup_text(full_content)
+    return url, content
+
+
+def process_file(fname: str, out_dir: str, indexer, splitter):
+    "Cut a text file in multiple chunks"
+    print(f"Processing '{fname}'", file=sys.stderr)
+    basename = os.path.basename(fname[:-4])
+    url, content = validate_and_extract_url(fname, basename, out_dir)
+    if url is False:
+        return
     metadatas = []
     texts = []
     ids = []
-    n = 0
+    number = 0
     for chunk in splitter.split_text(content):
-        n = n + 1
-        id = f"{basename}-{n:04d}.txt"
-        oname = os.path.join(out_dir, "Chunk", id)
-        metadata = {
-            "url": url,
-            "source": oname,
-            "part": n,
-            "main_source": fname,
-        }
+        number = number + 1
+        metadata, chunck_id = process_chunk(
+            chunk, url, fname, basename, number, out_dir
+        )
         metadatas.append(metadata)
-        ids.append(id)
+        ids.append(chunck_id)
         texts.append(chunk)
-        with open(oname, "w") as out_f:
-            print(chunk, file=out_f)
-        # set the timestamp to be the same
-        stat = os.stat(fname)
-        os.utime(oname, (stat.st_atime, stat.st_mtime))
 
     if len(texts) == 0:
         print(f"Unable to split doc {fname}", file=sys.stderr)
@@ -80,6 +94,7 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
 
 
 def main(in_dir: str, out_dir: str):
+    "Entry point"
     print(f"Storing files under {out_dir}")
     splitter = get_splitter()
     indexer = get_vectorstore(out_dir)

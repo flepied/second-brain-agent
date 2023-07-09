@@ -34,3 +34,4 @@ youtube-transcript-api = "*"
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
+pylint = "*"

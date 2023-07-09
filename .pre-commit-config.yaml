@@ -1,12 +1,24 @@
 ---
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+fail_fast: true
+
 repos:
 
   - repo: local
     hooks:
+      - id: poetry-deps
+        name: Poetry Deps
+        entry: poetry install --with test
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+
+  - repo: local
+    hooks:
       - id: pytest-check
-        name: pytest-check
+        name: Pytest checks
         entry: poetry run pytest
         language: system
         pass_filenames: false
@@ -45,6 +57,16 @@ repos:
     hooks:
       - id: pymarkdown
         args: ["-d", "md014,md013", "scan"]
+
+  - repo: local
+    hooks:
+      - id: poetry-pylint
+        name: Pylint checks
+        entry: poetry run pylint
+        pass_filenames: true
+        language: system
+        files: ".*\\.py$"
+        exclude: "htmlTemplates\\.py|test.*\\.py"
 
   - repo: https://github.com/python-poetry/poetry
     rev: '1.5.1'

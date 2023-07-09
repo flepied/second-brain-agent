@@ -1,3 +1,9 @@
+"""Second brain web interface
+
+Take a question from the user and call the LLM for an answer using the
+closest documents stored in the vector database as context.
+"""
+
 import os
 
 import streamlit as st
@@ -11,6 +17,7 @@ from lib import get_vectorstore
 
 
 def handle_userinput(user_question):
+    "Handle the input from the user as a question to the LLM"
     response = st.session_state.conversation({"question": user_question})
     st.session_state.chat_history = response["chat_history"]
 
@@ -27,11 +34,13 @@ def handle_userinput(user_question):
 
 
 def clear_input_box():
+    "Empty the input box"
     handle_userinput(st.session_state["question"])
     st.session_state["question"] = ""
 
 
 def main():
+    "Entry point"
     load_dotenv()
     st.set_page_config(page_title="Chat with your Second Brain", page_icon=":brain:")
     st.write(css, unsafe_allow_html=True)

@@ -13,9 +13,10 @@ from lib import get_vectorstore
 
 
 def main(out_dir, query):
+    "Entry point"
     print(f"Getting data from {out_dir}", file=sys.stderr)
-    vs = get_vectorstore(out_dir)
-    results = vs.similarity_search_with_relevance_scores(query)
+    vector_store = get_vectorstore(out_dir)
+    results = vector_store.similarity_search_with_relevance_scores(query)
     for result in results:
         print(
             f"{result[0].metadata['source']}: {result[1]} ({result[0].metadata['url']})"
