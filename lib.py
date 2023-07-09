@@ -1,13 +1,12 @@
 import os
 import re
-import sys
 import string
-
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.indexes.vectorstore import VectorStoreIndexWrapper
+import sys
 
 from chromadb.config import Settings
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.indexes.vectorstore import VectorStoreIndexWrapper
+from langchain.vectorstores import Chroma
 
 
 def cleanup_text(x):

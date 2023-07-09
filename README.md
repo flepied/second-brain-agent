@@ -29,6 +29,24 @@ Copy the example .env file and edit it to suit your settings:
 $ cp example.env .env
 ```
 
+Install the dependencies using [poetry](https://python-poetry.org/):
+
+```ShellSession
+$ poetry install
+```
+
+There is a bug between poetry, torch and pypi, to workaround just do:
+
+```ShellSession
+$ poetry run pip install torch
+```
+
+Then to use the created virtualenv, do:
+
+```ShellSession
+$ poetry shell
+```
+
 ### systemd services
 
 To install systemd services to manage automatically the different scripts when the operating system starts, use the following command (need sudo access):
@@ -65,3 +83,25 @@ $ streamlit run second_brain_agent.py
 Here is an example:
 
 ![Screenshot](screenshot.png "Screenshot")
+
+## Development
+
+Install the extra dependencies using [poetry](https://python-poetry.org/):
+
+```ShellSession
+$ poetry install --with test
+```
+
+And then run the tests, like this:
+
+```ShellSession
+$ poetry run pytest
+```
+
+### pre-commit
+
+Before submitting a PR, make sure to activate [pre-commit](https://pre-commit.com/):
+
+```ShellSession
+poetry run pre-commit install
+```

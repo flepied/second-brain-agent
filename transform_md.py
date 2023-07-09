@@ -14,11 +14,10 @@ import shutil
 import sys
 
 from langchain.document_loaders import (
+    PyMuPDFLoader,
     UnstructuredMarkdownLoader,
     UnstructuredURLLoader,
-    PyMuPDFLoader,
 )
-
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")

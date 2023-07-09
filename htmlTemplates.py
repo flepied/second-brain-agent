@@ -38,7 +38,7 @@ user_template = """
 <div class="chat-message user">
     <div class="avatar">
         <img src="https://i.ibb.co/r5c03hw/user-338-64.png">
-    </div>    
+    </div>
     <div class="message">{{MSG}}</div>
 </div>
 """

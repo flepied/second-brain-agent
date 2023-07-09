@@ -3,6 +3,15 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
 
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest-check
+        entry: poetry run pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
@@ -28,11 +37,19 @@ repos:
     rev: v2.2.5
     hooks:
       - id: codespell
+        args:
+          - "--exclude-file=poetry.lock"
 
   - repo: https://github.com/jackdewinter/pymarkdown
     rev: v0.9.11
     hooks:
       - id: pymarkdown
         args: ["-d", "md014,md013", "scan"]
+
+  - repo: https://github.com/python-poetry/poetry
+    rev: '1.5.1'
+    hooks:
+      - id: poetry-check
+      - id: poetry-lock
 
 ...

@@ -9,10 +9,9 @@ import os
 import sys
 
 from dotenv import load_dotenv
-
 from langchain.text_splitter import TokenTextSplitter
 
-from lib import get_vectorstore, cleanup_text
+from lib import cleanup_text, get_vectorstore
 
 # limit chunk size to 1000 as we retrieve 4 documents by default and
 # the token limit is 4096
