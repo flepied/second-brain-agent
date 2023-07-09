@@ -1,10 +1,16 @@
 # Second Brain AI agent
 
-The system takes as input a directory where you store your markdown notes for your second brain. For example I take my notes with [Obsidian](https://obsidian.md/). The system then processes any change in these files with the following pipeline:
+The Second Brain concept has been coined by Tiago Forte. It is a groundbreaking leap for Personal Knowledge Management making the note taking a very powerful tool. If you want more details, visit [Building a Second Brain: The Definitive Introductory Guide](https://fortelabs.com/blog/basboverview/) by Tiago Forte.
+
+If you take notes using markdown files like in the Second Brain method or using your own way, this project automatically indexes the content of the markdown files and the contained links (pdf documents, youtube video, web pages) and allows you to ask question about your content using the OpenAI Large Language Model.
+
+The system is built on top of the [LangChain](https://python.langchain.com/) framework and [ChromaDB](https://www.trychroma.com/).
+
+The system takes as input a directory where you store your markdown notes for your second brain. For example I take my notes with [Obsidian](https://obsidian.md/). The system then processes any change in these files automatically with the following pipeline:
 
 ```mermaid
 graph TD
-A[Markdown files from Obsidian]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[PKM AI Agent]
+A[Markdown files from Obsidian]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[Second Brain AI Agent]
 ```
 
 From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file it extracts pdf, url, youtube video and transforms them into text.
