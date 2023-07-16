@@ -5,13 +5,14 @@ Transform txt files into chunks of text then transform the chunks
 into vector embeddings and store the vectors in a vector database.
 """
 
+import json
 import os
 import sys
 
 from dotenv import load_dotenv
 from langchain.text_splitter import TokenTextSplitter
 
-from lib import cleanup_text, get_vectorstore, is_same_time
+from lib import get_vectorstore, is_same_time
 
 # limit chunk size to 1000 as we retrieve 4 documents by default and
 # the token limit is 4096
@@ -26,51 +27,41 @@ def get_splitter():
 
 
 # pylint: disable=too-many-arguments
-def process_chunk(chunk, url, fname, basename, number, out_dir):
+def process_chunk(chunk, metadata, fname, basename, number, out_dir):
     "Process a chunk of text"
     chunk_id = f"{basename}-{number:04d}.txt"
     oname = os.path.join(out_dir, "Chunk", chunk_id)
-    metadata = {
-        "url": url,
-        "source": oname,
-        "part": number,
-        "main_source": fname,
-    }
+    chunk_metadata = metadata.copy()
+    chunk_metadata["part"] = number
+    chunk_metadata["source"] = oname
+    chunk_metadata["main_source"] = fname
     with open(oname, "w", encoding="utf-8") as out_f:
         print(chunk, file=out_f)
     # set the timestamp to be the same
     stat = os.stat(fname)
     os.utime(oname, (stat.st_atime, stat.st_mtime))
-    return metadata, chunk_id
+    return chunk_metadata, chunk_id
 
 
 def validate_and_extract_url(fname, basename, out_dir):
-    "Validate that the file name is ending in .txt and is not the same date as the first chunk"
-    if not fname.endswith(".txt"):
-        print(f"Ignoring non txt file {fname}", file=sys.stderr)
+    "Validate that the file name is ending in .json and is not the same date as the first chunk"
+    if not fname.endswith(".json"):
+        print(f"Ignoring non json file {fname}", file=sys.stderr)
         return False, None
     oname = os.path.join(out_dir, "Chunk", basename + "-0001.txt")
     if is_same_time(fname, oname):
         return False, None
     with open(fname, encoding="utf-8") as in_stream:
-        full_content = in_stream.read(-1)
-    first_line, content = full_content.split("\n", 1)
-    header = first_line.split("=")
-    content = cleanup_text(content)
-    if len(header) == 2 and header[0] == "url":
-        url = header[1]
-    else:
-        url = f"file://{fname}"
-        content = cleanup_text(full_content)
-    return url, content
+        data = json.load(in_stream)
+    return data["metadata"], data["text"]
 
 
 def process_file(fname: str, out_dir: str, indexer, splitter):
     "Cut a text file in multiple chunks"
-    print(f"Processing '{fname}'", file=sys.stderr)
-    basename = os.path.basename(fname[:-4])
-    url, content = validate_and_extract_url(fname, basename, out_dir)
-    if url is False:
+    basename = os.path.basename(fname[:-5])
+    print(f"Processing '{fname}' '{basename}'", file=sys.stderr)
+    metadata, content = validate_and_extract_url(fname, basename, out_dir)
+    if metadata is False:
         return
     metadatas = []
     texts = []
@@ -78,17 +69,17 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
     number = 0
     for chunk in splitter.split_text(content):
         number = number + 1
-        metadata, chunck_id = process_chunk(
-            chunk, url, fname, basename, number, out_dir
+        chunk_metadata, chunck_id = process_chunk(
+            chunk, metadata, fname, basename, number, out_dir
         )
-        metadatas.append(metadata)
+        metadatas.append(chunk_metadata)
         ids.append(chunck_id)
         texts.append(chunk)
 
     if len(texts) == 0:
         print(f"Unable to split doc {fname}", file=sys.stderr)
     else:
-        print(f"Storing {len(texts)} chunks to the db for {url}", file=sys.stderr)
+        print(f"Storing {len(texts)} chunks to the db for {metadata=}", file=sys.stderr)
         res_ids = indexer.add_texts(texts, metadatas, ids=ids)
         print(f"ids={res_ids}", file=sys.stderr)
 

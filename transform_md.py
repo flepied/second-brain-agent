@@ -2,12 +2,13 @@
 
 """
 Transform markdown files from a directory or filenames read on the
-standard input into text files and read the content of these markdown
+standard input into json files and read the content of these markdown
 files to extract url, youtube videos and pdf and transform them into
-text files too.
+json files too.
 """
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -27,12 +28,25 @@ HTTP_REGEX = re.compile(r"https?://[^ ]+")
 IGNORED_REGEX = re.compile(r"^https://(docs.google.com|source.redhat.com)")
 
 
-def process_youtube_line(line, directory):
+def get_output_file_path(directory, base):
+    "return the path of the output json file"
+    return os.path.join(directory, "Text", base + ".json")
+
+
+def save_content(file_path, text, **metadata):
+    "save the text and metatada into a json file"
+    print(f"writing {file_path} metadata={metadata}", file=sys.stderr)
+    data = {"text": text, "metadata": metadata}
+    with open(file_path, "w", encoding="utf-8") as out_f:
+        json.dump(data, out_f)
+
+
+def process_youtube_line(basename, line, directory):
     "Test the line contains a youtube url and extract the transcript in the output directory"
     res = YOUTUBE_REGEX.search(line)
     if res:
         video_id = res.group(1)
-        transcript_path = os.path.join(directory, "Text", video_id + ".txt")
+        transcript_path = get_output_file_path(directory, video_id)
         if os.path.exists(transcript_path):
             print(f"transcript already exists for video {video_id}", file=sys.stderr)
         else:
@@ -40,10 +54,13 @@ def process_youtube_line(line, directory):
                 transcript = YouTubeTranscriptApi.get_transcript(
                     video_id, languages=["en", "fr"]
                 )
-                with open(transcript_path, "w", encoding="utf-8") as out_f:
-                    print(f"url=https://www.youtube.com/watch/{video_id}", file=out_f)
-                    for entry in transcript:
-                        print(entry["text"], file=out_f)
+                save_content(
+                    transcript_path,
+                    "\n".join([entry["text"] for entry in transcript]),
+                    url=f"https://www.youtube.com/watch/{video_id}",
+                    referer=basename,
+                    type="youtube",
+                )
             except _errors.TranscriptsDisabled:
                 print(f"transcript disabled for video {video_id}", file=sys.stderr)
             except _errors.NoTranscriptFound:
@@ -53,7 +70,7 @@ def process_youtube_line(line, directory):
     return False
 
 
-def process_url_line(line, directory):
+def process_url_line(basename, line, directory):
     "process url line by download pdf or html content into a text file in {directory}"
     res = HTTP_REGEX.search(line)
     if res:
@@ -77,12 +94,13 @@ def process_url_line(line, directory):
             return True
         # compute the output filename using the md5 hash of the url
         filename_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
-        output_path = os.path.join(directory, "Text", filename_hash + ".txt")
+        output_path = get_output_file_path(directory, filename_hash)
         if url.endswith(".pdf"):
             if os.path.exists(output_path):
                 print(f"file already exists for {output_path}", file=sys.stderr)
                 return True
             try:
+                file_type = "pdf"
                 loader = PyMuPDFLoader(url)
                 output = loader.load()
                 # save pdf to the Orig directory
@@ -99,33 +117,37 @@ def process_url_line(line, directory):
                 output = None
                 print(f"Unable to get {url}: {excpt}")
         else:
+            file_type = "web"
             output = UnstructuredURLLoader(
                 [url], continue_on_failure=True, encoding="UTF-8"
             ).load()
         if output:
-            with open(output_path, "w", encoding="utf-8") as out_f:
-                print(f"writing {filename_hash}.txt for {url}", file=sys.stderr)
-                print(f"url={url}", file=out_f)
-                print(output[0].page_content, file=out_f)
+            save_content(
+                output_path,
+                output[0].page_content,
+                url=url,
+                referer=basename,
+                type=file_type,
+            )
         else:
             print(f"unable to get url content for {url}", file=sys.stderr)
         return True
     return False
 
 
-def process_line(line, directory):
+def process_line(basename, line, directory):
     "Extract information from a line of a text file"
     return (
         line == ""
-        or process_youtube_line(line, directory)
-        or process_url_line(line, directory)
+        or process_youtube_line(basename, line, directory)
+        or process_url_line(basename, line, directory)
     )
 
 
-def process_content(content, directory):
+def process_content(basename, content, directory):
     "Process all the content form a file line by line"
     for line in content.split("\n"):
-        process_line(line, directory)
+        process_line(basename, line, directory)
 
 
 def process_file(fname, out_dir):
@@ -134,22 +156,22 @@ def process_file(fname, out_dir):
     if not fname.endswith(".md"):
         print(f"Ignoring non md file {fname}", file=sys.stderr)
         return
-    oname = os.path.join(out_dir, "Text", os.path.basename(fname[:-3]) + ".txt")
+    basename = os.path.basename(fname[:-3])
+    oname = get_output_file_path(out_dir, basename)
     if is_same_time(fname, oname):
         return
     print(f"writing {oname}", file=sys.stderr)
     loader = UnstructuredMarkdownLoader(fname)
     output = loader.load()[0]
-    with open(oname, "w", encoding="utf-8") as out_f:
-        print(output.page_content, file=out_f)
+    save_content(oname, output.page_content, type="notes", url=f"file://{fname}")
     # support UTF-8 and latin-1 encodings
     try:
         with open(fname, encoding="utf-8") as in_f:
-            process_content(in_f.read(-1), out_dir)
+            process_content(basename, in_f.read(-1), out_dir)
     # pylint: disable=broad-exception-caught
     except Exception:
         with open(fname, encoding="latin-1") as in_f:
-            process_content(in_f.read(-1), out_dir)
+            process_content(basename, in_f.read(-1), out_dir)
 
     # set the timestamp to be the same
     stat = os.stat(fname)
