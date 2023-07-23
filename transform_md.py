@@ -14,11 +14,15 @@ import re
 import shutil
 import sys
 
+from dotenv import load_dotenv
 from langchain.document_loaders import (
     PyMuPDFLoader,
     UnstructuredMarkdownLoader,
     UnstructuredURLLoader,
 )
+from langchain.document_loaders.blob_loaders.youtube_audio import YoutubeAudioLoader
+from langchain.document_loaders.generic import GenericLoader
+from langchain.document_loaders.parsers import OpenAIWhisperParser
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
 
 from lib import is_same_time
@@ -46,6 +50,7 @@ def process_youtube_line(basename, line, directory):
     res = YOUTUBE_REGEX.search(line)
     if res:
         video_id = res.group(1)
+        print(f"found youtube video {video_id}", file=sys.stderr)
         transcript_path = get_output_file_path(directory, video_id)
         if os.path.exists(transcript_path):
             print(f"transcript already exists for video {video_id}", file=sys.stderr)
@@ -61,11 +66,29 @@ def process_youtube_line(basename, line, directory):
                     referer=basename,
                     type="youtube",
                 )
+                return True
             except _errors.TranscriptsDisabled:
                 print(f"transcript disabled for video {video_id}", file=sys.stderr)
             except _errors.NoTranscriptFound:
                 print(f"no transcript found for video {video_id}", file=sys.stderr)
                 print(f"writing video transcript {video_id}.txt", file=sys.stderr)
+            print(f"falling back to whisper for {video_id}", file=sys.stderr)
+            # Directory to save audio files
+            save_dir = os.path.join(directory, "Orig")
+
+            # Transcribe the videos to text
+            loader = GenericLoader(
+                YoutubeAudioLoader([f"https://youtu.be/{video_id}"], save_dir),
+                OpenAIWhisperParser(),
+            )
+            docs = loader.load()
+            save_content(
+                transcript_path,
+                "\n".join([doc.page_content for doc in docs]),
+                url=f"https://www.youtube.com/watch/{video_id}",
+                referer=basename,
+                type="youtube",
+            )
         return True
     return False
 
@@ -192,6 +215,7 @@ def main(in_dir, out_dir):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main(sys.argv[1], sys.argv[2])
 
 # transform_md.py ends here
