@@ -14,6 +14,7 @@ import re
 import shutil
 import sys
 
+import yt_dlp
 from dotenv import load_dotenv
 from langchain.document_loaders import (
     PyMuPDFLoader,
@@ -81,7 +82,11 @@ def process_youtube_line(basename, line, directory):
                 YoutubeAudioLoader([f"https://youtu.be/{video_id}"], save_dir),
                 OpenAIWhisperParser(),
             )
-            docs = loader.load()
+            try:
+                docs = loader.load()
+            except yt_dlp.utils.DownloadError:
+                print(f"unable to download youtube video {video_id}", file=sys.stderr)
+                return False
             save_content(
                 transcript_path,
                 "\n".join([doc.page_content for doc in docs]),
