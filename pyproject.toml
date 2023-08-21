@@ -29,10 +29,8 @@ streamlit = "*"
 tiktoken = "*"
 unstructured = "*"
 youtube-transcript-api = "*"
-yt-dlp = "^2023.7.6"
-pydub = "^0.25.1"
-# workaround for https://github.com/hwchase17/langchain/issues/7509
-pydantic = "1.10.8"
+yt-dlp = "*"
+pydub = "*"
 # workarounds for streamlit dependencies
 altair = "<5"
 protobuf = "~=3.19.0"
