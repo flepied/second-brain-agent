@@ -3,7 +3,6 @@
 import os
 import re
 
-from chromadb.config import Settings
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain.vectorstores import Chroma
@@ -33,16 +32,9 @@ def get_embeddings():
 def get_vectorstore(out_dir):
     "Get the vector store configured with persistence in {out_dir}/Db"
     db_dir = os.path.join(out_dir, "Db")
-    # Define the Chroma settings
-    chroma_settings = Settings(
-        chroma_db_impl="duckdb+parquet",
-        persist_directory=db_dir,
-        anonymized_telemetry=False,
-    )
     vectorstore = Chroma(
         embedding_function=get_embeddings(),
         persist_directory=db_dir,
-        client_settings=chroma_settings,
     )
     return vectorstore
 
