@@ -23,7 +23,7 @@ repos:
       - id: check-added-large-files
 
   - repo: https://github.com/psf/black
-    rev: 23.3.0
+    rev: 23.7.0
     hooks:
       - id: black
 
@@ -43,7 +43,7 @@ repos:
           - "--exclude-file=poetry.lock"
 
   - repo: https://github.com/jackdewinter/pymarkdown
-    rev: v0.9.11
+    rev: v0.9.12
     hooks:
       - id: pymarkdown
         args: ["-d", "md014,md013", "scan"]
