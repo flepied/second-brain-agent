@@ -22,7 +22,9 @@ CHUNK_OVERLAP = 50
 
 def get_splitter():
     "Return text splitter"
-    splitter = TokenTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+    splitter = TokenTextSplitter(
+        chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, disallowed_special=()
+    )
     return splitter
 
 
