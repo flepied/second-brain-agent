@@ -41,3 +41,4 @@ click = "=8"
 [tool.poetry.group.test.dependencies]
 pytest = "*"
 pylint = "*"
+pre-commit = "*"
