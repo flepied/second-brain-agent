@@ -1,0 +1,21 @@
+---
+
+version: '3.9'
+
+networks:
+  net:
+    driver: bridge
+services:
+  server:
+    image: ghcr.io/chroma-core/chroma:0.4.6
+    volumes:
+      - $DSTDIR/Db:/chroma/chroma:z
+    ports:
+      - 8000:8000
+    networks:
+      - net
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ALLOW_RESET=TRUE
+
+...

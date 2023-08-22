@@ -9,9 +9,13 @@ if [ ! -r .env ]; then
     exit 1
 fi
 
+
 . .env
 
 mkdir -p "$DSTDIR/Chunk" "$DSTDIR/Db"
+
+docker-compose up -d
+docker-compose ps
 
 ./monitor.sh ./transform_txt.py "$DSTDIR/Text" "$DSTDIR"
 

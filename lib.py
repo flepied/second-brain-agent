@@ -2,7 +2,10 @@
 """
 import os
 import re
+import sys
+import time
 
+import chromadb
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain.vectorstores import Chroma
@@ -29,19 +32,39 @@ def get_embeddings():
     return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
-def get_vectorstore(out_dir):
-    "Get the vector store configured with persistence in {out_dir}/Db"
-    db_dir = os.path.join(out_dir, "Db")
-    vectorstore = Chroma(
-        embedding_function=get_embeddings(),
-        persist_directory=db_dir,
-    )
+def get_vectorstore():
+    "Get the vector store configured with an http server"
+    client = chromadb.HttpClient(settings=chromadb.config.Settings(allow_reset=True))
+    tries = 0
+    while tries < 12:
+        tries += 1
+        try:
+            vectorstore = Chroma(
+                embedding_function=get_embeddings(),
+                client=client,
+            )
+            print(
+                f"Number of documents in the vector store: {vectorstore._collection.count()}",  # pylint: disable=protected-access
+                file=sys.stderr,
+            )
+            break
+        except Exception as excpt:  # pylint: disable=broad-except
+            print(excpt, file=sys.stderr)
+            print(
+                f"Could not connect to the vector store, retrying in 5 seconds ({tries})",
+                file=sys.stderr,
+            )
+            time.sleep(5)
+            continue
+    else:
+        print("Could not connect to the vector store, giving up.", file=sys.stderr)
+        sys.exit(1)
     return vectorstore
 
 
-def get_indexer(out_dir):
+def get_indexer():
     "Get the indexer associated with the vector store"
-    return VectorStoreIndexWrapper(vectorstore=get_vectorstore(out_dir))
+    return VectorStoreIndexWrapper(vectorstore=get_vectorstore())
 
 
 def is_same_time(fname, oname):

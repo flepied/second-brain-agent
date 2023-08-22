@@ -76,6 +76,13 @@ repos:
         pass_filenames: false
         files: ^(.*/)?pyproject.toml$
 
+      - id: inject-chromadb-version
+        name: inject chromadb version into docker-compose.yml
+        entry: make docker-compose.yml
+        language: python
+        pass_filenames: false
+        files: ^poetry.lock$
+
       - id: poetry-export
         name: Poetry export
         description: run poetry export to sync lock file with requirements.txt

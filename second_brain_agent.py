@@ -4,8 +4,6 @@ Take a question from the user and call the LLM for an answer using the
 closest documents stored in the vector database as context.
 """
 
-import os
-
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.chains import ConversationalRetrievalChain
@@ -52,7 +50,7 @@ def main():
         )
         st.session_state.conversation = ConversationalRetrievalChain.from_llm(
             ChatOpenAI(temperature=0),
-            get_vectorstore(os.environ["DSTDIR"]).as_retriever(),
+            get_vectorstore().as_retriever(),
             memory=memory,
         )
 
