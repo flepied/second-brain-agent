@@ -74,6 +74,7 @@ repos:
         entry: poetry lock --no-update
         language: python
         pass_filenames: false
+        files: ^(.*/)?pyproject.toml$
 
       - id: poetry-export
         name: Poetry export
