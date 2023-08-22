@@ -1,6 +1,10 @@
-SHELL=/bin/bash
+SHELL := /bin/bash
 
-all: docker-compose.yml
+all: compose.yaml
 
-docker-compose.yml: poetry.lock
-	VER=$$(poetry run pip freeze|grep chromadb-client==|sed "s/.*==//") && echo $$VER && sed -i -e "s@ghcr.io/chroma-core/chroma:.*@ghcr.io/chroma-core/chroma:$$VER@" docker-compose.yml
+compose.yaml: poetry.lock
+	VER=$$(poetry run pip freeze|grep chromadb==|sed "s/.*==//") \
+	&& poetry run pip freeze|grep chromadb \
+	&& test -n "$$VER" \
+	&& echo $$VER  _
+	&& sed -i -e "s@ghcr.io/chroma-core/chroma:.*@ghcr.io/chroma-core/chroma:$$VER@" compose.yaml
