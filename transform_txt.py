@@ -90,7 +90,7 @@ def main(in_dir: str, out_dir: str):
     "Entry point"
     print(f"Storing files under {out_dir}")
     splitter = get_splitter()
-    indexer = get_vectorstore(out_dir)
+    indexer = get_vectorstore()
     # read filenames from stdin
     if in_dir == "-":
         print("Reading filenames from stdin", file=sys.stderr)
