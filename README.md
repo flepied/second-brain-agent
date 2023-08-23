@@ -50,7 +50,7 @@ The second brain agent is using the vector database to answer questions about yo
 
 ## Installation
 
-You need a Python interpreter. All this has been tested with Python 3.11 under Fedora Linux 38. Let me know if it work for you on your system.
+You need a Python 3 interpreter and the `inotify-tools` installed. All this has been tested with Python 3.11 under Fedora Linux 38. Let me know if it work for you on your system.
 
 Get the source code:
 

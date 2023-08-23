@@ -16,9 +16,10 @@ repos:
       - id: pytest-check
         name: Pytest checks
         entry: poetry run pytest
-        language: system
+        language: python
         pass_filenames: false
         always_run: true
+        files: ".*\\.py$"
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
