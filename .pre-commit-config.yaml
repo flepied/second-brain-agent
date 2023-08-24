@@ -75,10 +75,10 @@ repos:
         pass_filenames: false
         files: ^(.*/)?pyproject.toml$
 
-      - id: poetry-lock
-        name: Poetry lock
-        description: run poetry lock to check consistency
-        entry: poetry lock --check
+      - id: poetry-check-lock
+        name: Poetry check lock
+        description: run poetry check for lock consistency
+        entry: poetry check --lock
         language: python
         pass_filenames: false
         files: ^(.*/)?pyproject.toml$
