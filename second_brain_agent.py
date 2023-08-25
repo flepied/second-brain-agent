@@ -7,7 +7,7 @@ closest documents stored in the vector database as context.
 import streamlit as st
 from dotenv import load_dotenv
 
-from htmlTemplates import css, user_template
+from htmlTemplates import bot_template, css, user_template
 from lib import Agent
 
 
@@ -15,7 +15,8 @@ def handle_userinput(user_question):
     "Handle the input from the user as a question to the LLM"
     response = st.session_state.agent.html_question(user_question)
     st.write(
-        user_template.replace("{{MSG}}", response),
+        user_template.replace("{{MSG}}", user_question),
+        bot_template.replace("{{MSG}}", response),
         unsafe_allow_html=True,
     )
 
