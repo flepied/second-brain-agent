@@ -52,4 +52,23 @@ if grep -q "I don't know." <<< "$RES"; then
     exit 1
 fi
 
+# test changing a document but not its content
+sudo journalctl -u sba-md --rotate
+sudo journalctl -u sba-md --vacuum-time=1s
+
+touch $HOME/Notes/langchain.md
+
+TRY=0
+sudo journalctl -u sba-md
+while [ $TRY -lt 30 ]; do
+    TRY=$(( TRY + 1 ))
+    if sudo journalctl -u sba-md | grep -q "processing '$HOME/Notes/langchain.md'"; then
+        break
+    fi
+    sudo journalctl -u sba-md
+    sleep 1
+done
+
+sudo journalctl -u sba-md | grep "skipping $HOME/Notes/langchain.md as content did not change"
+
 # integration-test.sh ends here
