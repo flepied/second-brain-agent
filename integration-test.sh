@@ -38,8 +38,18 @@ done
 sudo journalctl -u sba-md
 sudo journalctl -u sba-txt
 
+set +x
+
+# test the vector store
 RES=$(poetry run ./similarity.py "What is langchain?")
 echo "$RES"
 test -n "$RES"
+
+# test the vector store and llm
+RES=$(poetry run ./qa.py "What is langchain?")
+echo "$RES"
+if grep -q "I don't know." <<< "$RES"; then
+    exit 1
+fi
 
 # integration-test.sh ends here

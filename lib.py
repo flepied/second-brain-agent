@@ -6,13 +6,15 @@ import sys
 import time
 
 import chromadb
+from langchain import OpenAI
+from langchain.chains import RetrievalQAWithSourcesChain
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain.vectorstores import Chroma
 
 
 def cleanup_text(text):
-    """Clean up tetextt.
+    """Clean up text
 
     - remove urls
     - remove hashtag
@@ -68,7 +70,7 @@ def get_indexer():
 
 
 def is_same_time(fname, oname):
-    "compare if {fname} and {oname} have the same timestamp"
+    "Compare if {fname} and {oname} have the same timestamp"
     ftime = os.stat(fname).st_mtime
     # do not write if the timestamps are the same
     try:
@@ -78,6 +80,70 @@ def is_same_time(fname, oname):
     except FileNotFoundError:
         pass
     return False
+
+
+def local_link(path):
+    "Create a local link to a file"
+    if path.startswith("/"):
+        return f"file:{path}"
+    return path
+
+
+class Agent:
+    "Agent to answer questions"
+
+    def __init__(self):
+        "Initialize the agent"
+        self.vectorstore = get_vectorstore()
+        self.chain = RetrievalQAWithSourcesChain.from_llm(
+            llm=OpenAI(temperature=0),
+            retriever=self.vectorstore.as_retriever(),
+        )
+
+    def question(self, user_question):
+        "Ask a question and format the answer for text"
+        response = self._get_response(user_question)
+        if response["sources"] != "None.":
+            sources = "- " + "\n- ".join(self._get_real_sources(response["sources"]))
+            return f"{response['answer']}\nSources:\n{sources}"
+        return response["answer"]
+
+    def html_question(self, user_question):
+        "Ask a question and format the answer for html"
+        response = self._get_response(user_question)
+        if response["sources"] != "None.":
+            sources = "- " + "\n- ".join(
+                [
+                    f'<a href="{local_link(src)}">{src}</a>'
+                    for src in self._get_real_sources(response["sources"])
+                ]
+            )
+            return f"{response['answer']}\nSources:\n{sources}"
+        return response["answer"]
+
+    def _get_response(self, user_question):
+        "Get the response from the LLM and vector store"
+        return self.chain({"question": user_question})
+
+    def _get_real_sources(self, sources):
+        "Get the url instead of the chunk sources"
+        real_sources = []
+        for source in sources.split(", "):
+            results = self.vectorstore.get(
+                include=["metadatas"], where={"source": source}
+            )
+            if (
+                results
+                and "metadatas" in results
+                and len(results["metadatas"]) > 0
+                and "url" in results["metadatas"][0]
+            ):
+                url = results["metadatas"][0]["url"]
+                if url not in real_sources:
+                    real_sources.append(url)
+            else:
+                real_sources.append(source)
+        return real_sources
 
 
 # lib.py ends here
