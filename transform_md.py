@@ -38,8 +38,17 @@ def get_output_file_path(directory, base):
     return os.path.join(directory, "Text", base + ".json")
 
 
-def save_content(file_path, text, **metadata):
+def save_content(file_path, text, check_content=True, **metadata):
     "save the text and metatada into a json file"
+    if check_content:
+        try:
+            with open(file_path, "r", encoding="utf-8") as in_f:
+                data = json.load(in_f)
+            if data["text"] == text:
+                print(f"content is the same for {file_path}", file=sys.stderr)
+                return
+        except FileNotFoundError:
+            pass
     print(f"writing {file_path} metadata={metadata}", file=sys.stderr)
     data = {"text": text, "metadata": metadata}
     with open(file_path, "w", encoding="utf-8") as out_f:
@@ -192,7 +201,13 @@ def process_file(fname, out_dir, checksum_store):
         print(f"writing {oname}", file=sys.stderr)
         loader = UnstructuredMarkdownLoader(fname)
         output = loader.load()[0]
-        save_content(oname, output.page_content, type="notes", url=f"file://{fname}")
+        save_content(
+            oname,
+            output.page_content,
+            type="notes",
+            url=f"file://{fname}",
+            check_content=False,
+        )
         # support UTF-8 and latin-1 encodings
         try:
             with open(fname, encoding="utf-8") as in_f:
@@ -206,6 +221,7 @@ def process_file(fname, out_dir, checksum_store):
     # set the timestamp to be the same
     stat = os.stat(fname)
     os.utime(oname, (stat.st_atime, stat.st_mtime))
+    print(f"processed '{fname}'", file=sys.stderr)
 
 
 def main(in_dir, out_dir):
