@@ -1,5 +1,7 @@
 """Misc functions used in other scripts
 """
+import hashlib
+import json
 import os
 import re
 import sys
@@ -144,6 +146,50 @@ class Agent:
             else:
                 real_sources.append(source)
         return real_sources
+
+
+class ChecksumStore:
+    "Store checksums of files"
+
+    def __init__(self, checksum_file="checksums.json"):
+        "Initialize the checksum store"
+        self.checksum_file = checksum_file
+        self.checksums = {}
+        self._load_checksums()
+
+    def _load_checksums(self):
+        "Load the checksums from the checksum file"
+        if os.path.exists(self.checksum_file):
+            with open(self.checksum_file, encoding="utf-8") as in_f:
+                self.checksums = json.load(in_f)
+
+    def store_checksum(self, filename, checksum):
+        "Store the checksum of a file"
+        self.checksums[filename] = checksum
+        with open(self.checksum_file, "w", encoding="utf-8") as out_f:
+            json.dump(self.checksums, out_f)
+
+    def has_file_changed(self, filename):
+        "Check if a file has changed"
+        checksum = self.compute_checksum(filename)
+        if filename not in self.checksums:
+            self.store_checksum(filename, checksum)
+            return None
+        if checksum != self.checksums[filename]:
+            self.store_checksum(filename, checksum)
+            return True
+        return False
+
+    def compute_checksum(self, filename, algorithm="md5"):
+        """
+        Compute the checksum of a file using the given algorithm.
+        Default algorithm is MD5.
+        """
+        hash_function = getattr(hashlib, algorithm)()
+        with open(filename, "rb") as in_f:
+            for chunk in iter(lambda: in_f.read(4096), b""):
+                hash_function.update(chunk)
+                return hash_function.hexdigest()
 
 
 # lib.py ends here

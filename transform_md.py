@@ -26,7 +26,7 @@ from langchain.document_loaders.generic import GenericLoader
 from langchain.document_loaders.parsers import OpenAIWhisperParser
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
 
-from lib import is_same_time
+from lib import ChecksumStore, is_same_time
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
 HTTP_REGEX = re.compile(r"https?://[^ ]+")
@@ -38,8 +38,17 @@ def get_output_file_path(directory, base):
     return os.path.join(directory, "Text", base + ".json")
 
 
-def save_content(file_path, text, **metadata):
+def save_content(file_path, text, check_content=True, **metadata):
     "save the text and metatada into a json file"
+    if check_content:
+        try:
+            with open(file_path, "r", encoding="utf-8") as in_f:
+                data = json.load(in_f)
+            if data["text"] == text:
+                print(f"content is the same for {file_path}", file=sys.stderr)
+                return
+        except FileNotFoundError:
+            pass
     print(f"writing {file_path} metadata={metadata}", file=sys.stderr)
     data = {"text": text, "metadata": metadata}
     with open(file_path, "w", encoding="utf-8") as out_f:
@@ -178,7 +187,7 @@ def process_content(basename, content, directory):
         process_line(basename, line, directory)
 
 
-def process_file(fname, out_dir):
+def process_file(fname, out_dir, checksum_store):
     "Process a markdown file if the output text file is older or non existent"
     print(f"processing '{fname}'", file=sys.stderr)
     if not fname.endswith(".md"):
@@ -188,35 +197,45 @@ def process_file(fname, out_dir):
     oname = get_output_file_path(out_dir, basename)
     if is_same_time(fname, oname):
         return
-    print(f"writing {oname}", file=sys.stderr)
-    loader = UnstructuredMarkdownLoader(fname)
-    output = loader.load()[0]
-    save_content(oname, output.page_content, type="notes", url=f"file://{fname}")
-    # support UTF-8 and latin-1 encodings
-    try:
-        with open(fname, encoding="utf-8") as in_f:
-            process_content(basename, in_f.read(-1), out_dir)
-    # pylint: disable=broad-exception-caught
-    except Exception:
-        with open(fname, encoding="latin-1") as in_f:
-            process_content(basename, in_f.read(-1), out_dir)
-
+    if checksum_store.has_file_changed(fname) is not False:
+        print(f"writing {oname}", file=sys.stderr)
+        loader = UnstructuredMarkdownLoader(fname)
+        output = loader.load()[0]
+        save_content(
+            oname,
+            output.page_content,
+            type="notes",
+            url=f"file://{fname}",
+            check_content=False,
+        )
+        # support UTF-8 and latin-1 encodings
+        try:
+            with open(fname, encoding="utf-8") as in_f:
+                process_content(basename, in_f.read(-1), out_dir)
+        # pylint: disable=broad-exception-caught
+        except Exception:
+            with open(fname, encoding="latin-1") as in_f:
+                process_content(basename, in_f.read(-1), out_dir)
+    else:
+        print(f"skipping {fname} as content did not change", file=sys.stderr)
     # set the timestamp to be the same
     stat = os.stat(fname)
     os.utime(oname, (stat.st_atime, stat.st_mtime))
+    print(f"processed '{fname}'", file=sys.stderr)
 
 
 def main(in_dir, out_dir):
     "Entry point"
+    checksum_store = ChecksumStore(os.path.join(out_dir, "checksums.json"))
     # read filenames from stdin
     if in_dir == "-":
         print("Reading filenames from stdin", file=sys.stderr)
         for fname in sys.stdin:
-            process_file(fname.rstrip(), out_dir)
+            process_file(fname.rstrip(), out_dir, checksum_store)
     else:
         # scan input dir
         for entry in os.scandir(in_dir):
-            process_file(os.path.join(in_dir, entry.name), out_dir)
+            process_file(os.path.join(in_dir, entry.name), out_dir, checksum_store)
 
 
 if __name__ == "__main__":
