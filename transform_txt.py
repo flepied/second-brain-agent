@@ -12,7 +12,7 @@ import sys
 from dotenv import load_dotenv
 from langchain.text_splitter import TokenTextSplitter
 
-from lib import get_vectorstore, is_same_time
+from lib import datetime_decoder, get_vectorstore, is_same_time
 
 # limit chunk size to 1000 as we retrieve 4 documents by default and
 # the token limit is 4096
@@ -54,8 +54,13 @@ def validate_and_extract_url(fname, basename, out_dir):
     if is_same_time(fname, oname):
         return False, None
     with open(fname, encoding="utf-8") as in_stream:
-        data = json.load(in_stream)
-    return data["metadata"], data["text"]
+        data = json.load(in_stream, object_hook=datetime_decoder)
+    metadata = data["metadata"]
+    # convert the datetime to timestamp because chromadb does not
+    # support datetime
+    if "last_accessed_at" in metadata:
+        metadata["last_accessed_at"] = metadata["last_accessed_at"].timestamp()
+    return metadata, data["text"]
 
 
 def process_file(fname: str, out_dir: str, indexer, splitter):

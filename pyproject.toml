@@ -20,7 +20,7 @@ python = ">=3.8.1,<3.12"
 bs4 = "*"
 chromadb = "*"
 huggingface_hub = "*"
-langchain = "*"
+langchain = { git = "https://github.com/flepied/langchain.git", branch = "bug3685", subdirectory = "libs/langchain" }
 openai = "*"
 pymupdf = "*"
 python-dotenv = "*"
