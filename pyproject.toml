@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "second-brain-agent"
-version = "0.3.0"
+version = "0.4.0"
 description = "Second Brain AI Agent"
 authors = ["Frederic Lepied <flepied@gmail.com>"]
 license = "GPL 3.0"
@@ -32,7 +32,7 @@ youtube-transcript-api = "*"
 yt-dlp = "*"
 pydub = "*"
 markdown = "*"
-# avoid
+# avoid incompatibility with langchain
 pydantic = ">=1.9,<2.0"
 # workarounds for streamlit dependencies
 altair = "<5"
