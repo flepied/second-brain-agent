@@ -1,5 +1,7 @@
 """Misc functions used in other scripts
 """
+
+import datetime
 import hashlib
 import json
 import os
@@ -87,7 +89,7 @@ def is_same_time(fname, oname):
 def local_link(path):
     "Create a local link to a file"
     if path.startswith("/"):
-        return f"file:{path}"
+        return f"file://{path}"
     return path
 
 
@@ -190,6 +192,28 @@ class ChecksumStore:
             for chunk in iter(lambda: in_f.read(4096), b""):
                 hash_function.update(chunk)
                 return hash_function.hexdigest()
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    "Encode datetime objects to json"
+
+    def default(self, o):
+        "Encode datetime objects to json"
+        if isinstance(o, datetime.datetime):
+            return o.isoformat()
+        return super().default(o)
+
+
+# Custom deserialization function
+def datetime_decoder(dct):
+    "Decode datetime objects from json"
+    for key, val in dct.items():
+        if key == "last_accessed_at":
+            try:
+                dct[key] = datetime.datetime.fromisoformat(val)
+            except ValueError:
+                pass  # Not a valid datetime string, leave as is
+    return dct
 
 
 # lib.py ends here

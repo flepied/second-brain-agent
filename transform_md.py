@@ -7,6 +7,7 @@ files to extract url, youtube videos and pdf and transform them into
 json files too.
 """
 
+import datetime
 import hashlib
 import json
 import os
@@ -26,7 +27,7 @@ from langchain.document_loaders.generic import GenericLoader
 from langchain.document_loaders.parsers import OpenAIWhisperParser
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
 
-from lib import ChecksumStore, is_same_time
+from lib import ChecksumStore, DateTimeEncoder, is_same_time
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
 HTTP_REGEX = re.compile(r"https?://[^ ]+")
@@ -52,10 +53,10 @@ def save_content(file_path, text, check_content=True, **metadata):
     print(f"writing {file_path} metadata={metadata}", file=sys.stderr)
     data = {"text": text, "metadata": metadata}
     with open(file_path, "w", encoding="utf-8") as out_f:
-        json.dump(data, out_f)
+        json.dump(data, out_f, cls=DateTimeEncoder, ensure_ascii=False, indent=2)
 
 
-def process_youtube_line(basename, line, directory):
+def process_youtube_line(basename, line, directory, last_accessed_at):
     "Test the line contains a youtube url and extract the transcript in the output directory"
     res = YOUTUBE_REGEX.search(line)
     if res:
@@ -75,6 +76,7 @@ def process_youtube_line(basename, line, directory):
                     url=f"https://www.youtube.com/watch/{video_id}",
                     referer=basename,
                     type="youtube",
+                    last_accessed_at=last_accessed_at,
                 )
                 return True
             except _errors.TranscriptsDisabled:
@@ -102,12 +104,13 @@ def process_youtube_line(basename, line, directory):
                 url=f"https://www.youtube.com/watch/{video_id}",
                 referer=basename,
                 type="youtube",
+                last_accessed_at=last_accessed_at,
             )
         return True
     return False
 
 
-def process_url_line(basename, line, directory):
+def process_url_line(basename, line, directory, last_accessed_at):
     "process url line by download pdf or html content into a text file in {directory}"
     res = HTTP_REGEX.search(line)
     if res:
@@ -165,6 +168,7 @@ def process_url_line(basename, line, directory):
                 url=url,
                 referer=basename,
                 type=file_type,
+                last_accessed_at=last_accessed_at,
             )
         else:
             print(f"unable to get url content for {url}", file=sys.stderr)
@@ -172,22 +176,22 @@ def process_url_line(basename, line, directory):
     return False
 
 
-def process_line(basename, line, directory):
+def process_line(basename, line, directory, last_accessed_at):
     "Extract information from a line of a text file"
     return (
         line == ""
-        or process_youtube_line(basename, line, directory)
-        or process_url_line(basename, line, directory)
+        or process_youtube_line(basename, line, directory, last_accessed_at)
+        or process_url_line(basename, line, directory, last_accessed_at)
     )
 
 
-def process_content(basename, content, directory):
-    "Process all the content form a file line by line"
+def process_content(basename, content, directory, last_accessed_at):
+    "Process all the content from a file line by line"
     for line in content.split("\n"):
-        process_line(basename, line, directory)
+        process_line(basename, line, directory, last_accessed_at)
 
 
-def process_file(fname, out_dir, checksum_store):
+def process_md_file(fname, out_dir, checksum_store):
     "Process a markdown file if the output text file is older or non existent"
     print(f"processing '{fname}'", file=sys.stderr)
     if not fname.endswith(".md"):
@@ -195,31 +199,33 @@ def process_file(fname, out_dir, checksum_store):
         return
     basename = os.path.basename(fname[:-3])
     oname = get_output_file_path(out_dir, basename)
+    stat = os.stat(fname)
     if is_same_time(fname, oname):
         return
     if checksum_store.has_file_changed(fname) is not False:
         print(f"writing {oname}", file=sys.stderr)
         loader = UnstructuredMarkdownLoader(fname)
         output = loader.load()[0]
+        last_accessed_at = datetime.datetime.fromtimestamp(stat.st_mtime)
         save_content(
             oname,
             output.page_content,
             type="notes",
             url=f"file://{fname}",
             check_content=False,
+            last_accessed_at=last_accessed_at,
         )
         # support UTF-8 and latin-1 encodings
         try:
             with open(fname, encoding="utf-8") as in_f:
-                process_content(basename, in_f.read(-1), out_dir)
+                process_content(basename, in_f.read(-1), out_dir, last_accessed_at)
         # pylint: disable=broad-exception-caught
         except Exception:
             with open(fname, encoding="latin-1") as in_f:
-                process_content(basename, in_f.read(-1), out_dir)
+                process_content(basename, in_f.read(-1), out_dir, last_accessed_at)
     else:
         print(f"skipping {fname} as content did not change", file=sys.stderr)
     # set the timestamp to be the same
-    stat = os.stat(fname)
     os.utime(oname, (stat.st_atime, stat.st_mtime))
     print(f"processed '{fname}'", file=sys.stderr)
 
@@ -231,11 +237,11 @@ def main(in_dir, out_dir):
     if in_dir == "-":
         print("Reading filenames from stdin", file=sys.stderr)
         for fname in sys.stdin:
-            process_file(fname.rstrip(), out_dir, checksum_store)
+            process_md_file(fname.rstrip(), out_dir, checksum_store)
     else:
         # scan input dir
         for entry in os.scandir(in_dir):
-            process_file(os.path.join(in_dir, entry.name), out_dir, checksum_store)
+            process_md_file(os.path.join(in_dir, entry.name), out_dir, checksum_store)
 
 
 if __name__ == "__main__":
