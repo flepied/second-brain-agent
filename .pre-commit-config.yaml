@@ -75,14 +75,6 @@ repos:
         pass_filenames: false
         files: ^(.*/)?pyproject.toml$
 
-      - id: poetry-check-lock
-        name: Poetry check lock
-        description: run poetry check for lock consistency
-        entry: poetry check --lock
-        language: python
-        pass_filenames: false
-        files: ^(.*/)?pyproject.toml$
-
       - id: inject-chromadb-version
         name: inject chromadb version into compose.yaml
         entry: make compose.yaml

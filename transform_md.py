@@ -30,7 +30,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, _errors
 from lib import ChecksumStore, DateTimeEncoder, is_same_time
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
-HTTP_REGEX = re.compile(r"https?://[^ ]+")
+HTTP_REGEX = re.compile(r"https://[^ ]+")
 IGNORED_REGEX = re.compile(r"^https://(docs.google.com|source.redhat.com)")
 
 
@@ -116,10 +116,6 @@ def process_url_line(basename, line, directory, last_accessed_at):
     if res:
         url = res.group(0)
         print(f"found url {url}", file=sys.stderr)
-        # replace http by https
-        if url.startswith("http://"):
-            url = url.replace("http://", "https://")
-            print(f"switched to {url}", file=sys.stderr)
         # skip private or local network urls
         if (
             url.startswith("https://192.168.")
@@ -186,9 +182,31 @@ def process_line(basename, line, directory, last_accessed_at):
 
 
 def process_content(basename, content, directory, last_accessed_at):
-    "Process all the content from a file line by line"
+    "Process all the content from a file line by line skipping the header"
+    in_header = True
     for line in content.split("\n"):
+        if in_header:
+            if line in ("---", "", "...") or len(line.split(":", 1)) == 2:
+                continue
+            in_header = False
         process_line(basename, line, directory, last_accessed_at)
+
+
+def get_metadata(content):
+    "Extract metadata from the header and remove the header from the content"
+    metadata = {}
+    lines = content.split("\n")
+    idx = 0
+    for idx, line in enumerate(lines):
+        header = line.split(":", 1)
+        if len(header) == 2:
+            metadata[header[0].strip()] = header[1].strip()
+            continue
+        if line in ("---", "", "..."):
+            continue
+        break
+    content = "\n".join(lines[idx:])
+    return metadata, content
 
 
 def process_md_file(fname, out_dir, checksum_store):
@@ -196,14 +214,14 @@ def process_md_file(fname, out_dir, checksum_store):
     print(f"processing '{fname}'", file=sys.stderr)
     if not fname.endswith(".md"):
         print(f"Ignoring non md file {fname}", file=sys.stderr)
-        return
+        return False
     basename = os.path.basename(fname[:-3])
     oname = get_output_file_path(out_dir, basename)
     stat = os.stat(fname)
     if is_same_time(fname, oname):
-        return
-    if checksum_store.has_file_changed(fname) is not False:
-        print(f"writing {oname}", file=sys.stderr)
+        print(f"skipping {fname} as there is no time change", file=sys.stderr)
+        return False
+    if checksum_store.has_file_changed(fname) is not False or not os.path.exists(oname):
         loader = UnstructuredMarkdownLoader(fname)
         output = loader.load()[0]
         last_accessed_at = datetime.datetime.fromtimestamp(stat.st_mtime)
@@ -213,7 +231,6 @@ def process_md_file(fname, out_dir, checksum_store):
             type="notes",
             url=f"file://{fname}",
             check_content=False,
-            last_accessed_at=last_accessed_at,
         )
         # support UTF-8 and latin-1 encodings
         try:
@@ -223,11 +240,25 @@ def process_md_file(fname, out_dir, checksum_store):
         except Exception:
             with open(fname, encoding="latin-1") as in_f:
                 process_content(basename, in_f.read(-1), out_dir, last_accessed_at)
+        # add metadata and remove header from content
+        metadata, content = get_metadata(output.page_content)
+        metadata["type"] = "notes"
+        metadata["last_accessed_at"] = (last_accessed_at,)
+        if "url" not in metadata:
+            metadata["url"] = f"file://{fname}"
+        save_content(
+            oname,
+            content,
+            check_content=False,
+            **metadata,
+        )
     else:
         print(f"skipping {fname} as content did not change", file=sys.stderr)
+        return False
+    print(f"processed '{fname}' -> '{oname}'", file=sys.stderr)
     # set the timestamp to be the same
     os.utime(oname, (stat.st_atime, stat.st_mtime))
-    print(f"processed '{fname}'", file=sys.stderr)
+    return True
 
 
 def main(in_dir, out_dir):

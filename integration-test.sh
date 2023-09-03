@@ -38,8 +38,6 @@ done
 sudo journalctl -u sba-md
 sudo journalctl -u sba-txt
 
-set +x
-
 # test the vector store
 RES=$(poetry run ./similarity.py "What is langchain?")
 echo "$RES"
@@ -68,6 +66,7 @@ while [ $TRY -lt 30 ]; do
     sleep 1
 done
 sudo journalctl -u sba-md
+jq . $HOME/.second-brain/checksums.json
 sudo journalctl -u sba-md | grep "skipping $HOME/Notes/langchain.md as content did not change"
 
 # wait a bit to be sure to have all the logs in different seconds
