@@ -11,7 +11,7 @@ fi
 
 . .env
 
-mkdir -p "$DSTDIR/Orig" "$DSTDIR/Text"
+mkdir -p "$DSTDIR/Orig" "$DSTDIR/Text" "$DSTDIR/Markdown"
 
 ./monitor.sh ./transform_md.py "$SRCDIR" "$DSTDIR"
 

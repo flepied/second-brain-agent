@@ -47,13 +47,14 @@ def save_content(file_path, text, check_content=True, **metadata):
                 data = json.load(in_f)
             if data["text"] == text:
                 print(f"content is the same for {file_path}", file=sys.stderr)
-                return
+                return False
         except FileNotFoundError:
             pass
     print(f"writing {file_path} metadata={metadata}", file=sys.stderr)
     data = {"text": text, "metadata": metadata}
     with open(file_path, "w", encoding="utf-8") as out_f:
         json.dump(data, out_f, cls=DateTimeEncoder, ensure_ascii=False, indent=2)
+    return True
 
 
 def process_youtube_line(basename, line, directory, last_accessed_at):
@@ -209,6 +210,95 @@ def get_metadata(content):
     return metadata, content
 
 
+def remove_dash(content, level):
+    "Remove dashes from the content"
+    lines = content.split("\n")
+    dashes = "#" * level
+    for idx, line in enumerate(lines):
+        if line.startswith(dashes):
+            lines[idx] = line[level:].strip()
+    return "\n".join(lines)
+
+
+DATE2_REGEXP = re.compile(r"^## (\d\d \w+ \d\d\d\d)", re.MULTILINE)
+DATE3_REGEXP = re.compile(r"^### (\d\d \w+ \d\d\d\d)", re.MULTILINE)
+
+
+def split_md_file(fname, md_dir):
+    "Split a markdown file into multiple files according to history"
+    basename = os.path.basename(fname[:-3])
+    with open(fname, "r", encoding="UTF-8") as fptr:
+        content = fptr.read()
+    files = []
+    if fname.find("History") != -1:
+        history = DATE2_REGEXP.split(content)
+        level = 1
+    elif content.find("## History") != -1:
+        history = DATE3_REGEXP.split(content)
+        level = 2
+    else:
+        history = []
+        files = [fname]
+    if len(history) >= 3:
+        base_fname = os.path.join(md_dir, basename + ".md")
+        with open(base_fname, "w", encoding="UTF-8") as fptr:
+            fptr.write(history[0])
+        files.append(base_fname)
+        stat = os.stat(fname)
+        os.utime(base_fname, (stat.st_atime, stat.st_mtime))
+        for idx in range(1, len(history), 2):
+            history_date = datetime.datetime.strptime(history[idx], "%d %b %Y")
+            if level == 1:
+                date = history_date.strftime("%d")
+            else:
+                date = history_date.strftime("%Y%m%d")
+            part_fname = os.path.join(md_dir, basename + date + ".md")
+            with open(part_fname, "w", encoding="UTF-8") as fptr:
+                fptr.write("# " + history[idx] + remove_dash(history[idx + 1], level))
+            mtime = (history_date + datetime.timedelta(hours=12)).timestamp()
+            os.utime(part_fname, (mtime, mtime))
+            files.append(part_fname)
+    print(f"found {len(files)} history files", file=sys.stderr)
+    return files
+
+
+def write_output_file(md_file, out_dir, metadata):
+    "Write the output json file from a markdown file and process the its content"
+    loader = UnstructuredMarkdownLoader(md_file)
+    output = loader.load()[0]
+    md_stat = os.stat(md_file)
+    last_accessed_at = datetime.datetime.fromtimestamp(md_stat.st_mtime)
+    basename = os.path.basename(md_file[:-3])
+    if metadata is None:
+        # add metadata and remove header from content from the first file
+        metadata, content = get_metadata(output.page_content)
+        metadata["type"] = "notes"
+    else:
+        content = output.page_content
+    metadata["last_accessed_at"] = (last_accessed_at,)
+    if "url" not in metadata:
+        metadata["url"] = f"file://{md_file}"
+    print(f"saving {md_file=} with {metadata=}", file=sys.stderr)
+    omdname = get_output_file_path(out_dir, basename)
+    saved = save_content(
+        omdname,
+        content,
+        **metadata,
+    )
+    # if content has been saved, process it
+    if saved:
+        # support UTF-8 and latin-1 encodings
+        try:
+            with open(md_file, encoding="utf-8") as in_f:
+                process_content(basename, in_f.read(-1), out_dir, last_accessed_at)
+        # pylint: disable=broad-exception-caught
+        except Exception:
+            with open(md_file, encoding="latin-1") as in_f:
+                process_content(basename, in_f.read(-1), out_dir, last_accessed_at)
+
+    return metadata
+
+
 def process_md_file(fname, out_dir, checksum_store):
     "Process a markdown file if the output text file is older or non existent"
     print(f"processing '{fname}'", file=sys.stderr)
@@ -222,40 +312,15 @@ def process_md_file(fname, out_dir, checksum_store):
         print(f"skipping {fname} as there is no time change", file=sys.stderr)
         return False
     if checksum_store.has_file_changed(fname) is not False or not os.path.exists(oname):
-        loader = UnstructuredMarkdownLoader(fname)
-        output = loader.load()[0]
-        last_accessed_at = datetime.datetime.fromtimestamp(stat.st_mtime)
-        save_content(
-            oname,
-            output.page_content,
-            type="notes",
-            url=f"file://{fname}",
-            check_content=False,
-        )
-        # support UTF-8 and latin-1 encodings
-        try:
-            with open(fname, encoding="utf-8") as in_f:
-                process_content(basename, in_f.read(-1), out_dir, last_accessed_at)
-        # pylint: disable=broad-exception-caught
-        except Exception:
-            with open(fname, encoding="latin-1") as in_f:
-                process_content(basename, in_f.read(-1), out_dir, last_accessed_at)
-        # add metadata and remove header from content
-        metadata, content = get_metadata(output.page_content)
-        metadata["type"] = "notes"
-        metadata["last_accessed_at"] = (last_accessed_at,)
-        if "url" not in metadata:
-            metadata["url"] = f"file://{fname}"
-        save_content(
-            oname,
-            content,
-            check_content=False,
-            **metadata,
-        )
+        md_files = split_md_file(fname, os.path.join(out_dir, "Markdown"))
+        metadata = None
+        # extract the metadata and content from the first file and pass it to the others
+        for md_file in md_files:
+            metadata = write_output_file(md_file, out_dir, metadata)
     else:
         print(f"skipping {fname} as content did not change", file=sys.stderr)
         return False
-    print(f"processed '{fname}' -> '{oname}'", file=sys.stderr)
+    print(f"processed '{fname}'", file=sys.stderr)
     # set the timestamp to be the same
     os.utime(oname, (stat.st_atime, stat.st_mtime))
     return True
