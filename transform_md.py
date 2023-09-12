@@ -43,6 +43,7 @@ def save_content(file_path, text, check_content=True, **metadata):
     "save the text and metatada into a json file"
     if check_content:
         try:
+            print(f"reading {file_path}", file=sys.stderr)
             with open(file_path, "r", encoding="utf-8") as in_f:
                 data = json.load(in_f)
             if data["text"] == text:
@@ -50,6 +51,8 @@ def save_content(file_path, text, check_content=True, **metadata):
                 return False
         except FileNotFoundError:
             pass
+        except json.decoder.JSONDecodeError as exc:
+            print(f"invalid json file {file_path}: {exc}", file=sys.stderr)
     print(f"writing {file_path} metadata={metadata}", file=sys.stderr)
     data = {"text": text, "metadata": metadata}
     with open(file_path, "w", encoding="utf-8") as out_f:
@@ -201,11 +204,21 @@ def get_metadata(content):
     for idx, line in enumerate(lines):
         header = line.split(":", 1)
         if len(header) == 2:
-            metadata[header[0].strip()] = header[1].strip()
+            metadata[header[0].strip().lower()] = header[1].strip()
             continue
         if line in ("---", "", "..."):
             continue
         break
+    if "date" in metadata:
+        # transform date to a date object and save is as created_at
+        # because langchain uses that field
+        try:
+            metadata["created_at"] = datetime.datetime.strptime(
+                metadata["date"], "%Y/%m/%d %H:%M"
+            )
+            del metadata["date"]
+        except ValueError:
+            pass
     content = "\n".join(lines[idx:])
     return metadata, content
 
@@ -218,6 +231,18 @@ def remove_dash(content, level):
         if line.startswith(dashes):
             lines[idx] = line[level:].strip()
     return "\n".join(lines)
+
+
+def get_date(date_str):
+    "Get the date from a string trying different formats: 01 Jan 2020 then 01 January 2020"
+    try:
+        return datetime.datetime.strptime(date_str, "%d %B %Y")
+    except ValueError:
+        try:
+            return datetime.datetime.strptime(date_str, "%d %b %Y")
+        except ValueError:
+            print(f"Unable to parse date {date_str}", file=sys.stderr)
+            return date_str
 
 
 DATE2_REGEXP = re.compile(r"^## (\d\d \w+ \d\d\d\d)", re.MULTILINE)
@@ -247,13 +272,16 @@ def split_md_file(fname, md_dir):
         stat = os.stat(fname)
         os.utime(base_fname, (stat.st_atime, stat.st_mtime))
         for idx in range(1, len(history), 2):
-            history_date = datetime.datetime.strptime(history[idx], "%d %b %Y")
+            history_date = get_date(history[idx])
+            if isinstance(history_date, str):
+                continue
             if level == 1:
                 date = history_date.strftime("%d")
             else:
                 date = history_date.strftime("%Y%m%d")
             part_fname = os.path.join(md_dir, basename + date + ".md")
             with open(part_fname, "w", encoding="UTF-8") as fptr:
+                fptr.write(f"---\nReferer: {basename}\n---\n\n")
                 fptr.write("# " + history[idx] + remove_dash(history[idx + 1], level))
             mtime = (history_date + datetime.timedelta(hours=12)).timestamp()
             os.utime(part_fname, (mtime, mtime))
@@ -274,8 +302,10 @@ def write_output_file(md_file, out_dir, metadata):
         metadata, content = get_metadata(output.page_content)
         metadata["type"] = "notes"
     else:
-        content = output.page_content
-    metadata["last_accessed_at"] = (last_accessed_at,)
+        new_metadata, content = get_metadata(output.page_content)
+        metadata.update(new_metadata)
+        metadata["type"] = "history"
+    metadata["last_accessed_at"] = last_accessed_at
     if "url" not in metadata:
         metadata["url"] = f"file://{md_file}"
     print(f"saving {md_file=} with {metadata=}", file=sys.stderr)
@@ -307,7 +337,6 @@ def process_md_file(fname, out_dir, checksum_store):
         return False
     basename = os.path.basename(fname[:-3])
     oname = get_output_file_path(out_dir, basename)
-    stat = os.stat(fname)
     if is_same_time(fname, oname):
         print(f"skipping {fname} as there is no time change", file=sys.stderr)
         return False
@@ -321,8 +350,6 @@ def process_md_file(fname, out_dir, checksum_store):
         print(f"skipping {fname} as content did not change", file=sys.stderr)
         return False
     print(f"processed '{fname}'", file=sys.stderr)
-    # set the timestamp to be the same
-    os.utime(oname, (stat.st_atime, stat.st_mtime))
     return True
 
 

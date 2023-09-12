@@ -5,6 +5,7 @@ Transform txt files into chunks of text then transform the chunks
 into vector embeddings and store the vectors in a vector database.
 """
 
+import datetime
 import json
 import os
 import sys
@@ -54,12 +55,21 @@ def validate_and_extract_url(fname, basename, out_dir):
     if is_same_time(fname, oname):
         return False, None
     with open(fname, encoding="utf-8") as in_stream:
-        data = json.load(in_stream, object_hook=datetime_decoder)
+        try:
+            data = json.load(in_stream, object_hook=datetime_decoder)
+        except json.JSONDecodeError as exc:
+            print(f"Could not parse {fname}: {exc}", file=sys.stderr)
+            return False, None
+    if "metadata" not in data:
+        print(f"Could not find metadata in {fname}", file=sys.stderr)
+        return False, None
     metadata = data["metadata"]
     # convert the datetime to timestamp because chromadb does not
     # support datetime
-    if "last_accessed_at" in metadata:
-        metadata["last_accessed_at"] = metadata["last_accessed_at"].timestamp()
+    for key, val in metadata.items():
+        # check if the value is a datetime
+        if isinstance(val, datetime.datetime):
+            metadata[key] = val.timestamp()
     return metadata, data["text"]
 
 

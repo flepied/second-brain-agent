@@ -41,7 +41,7 @@ The system takes as input a directory where you store your markdown notes. For e
 
 ```mermaid
 graph TD
-A[Markdown files from Obsidian]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[Second Brain AI Agent]
+A[Markdown files from your editor]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[Second Brain AI Agent]
 ```
 
 From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file it extracts pdf, url, youtube video and transforms them into text. There is some support to extract history data from the markdown files: if there is an `## History` section or the file name contains `History`, the file is split in multiple parts according to `<day> <month> <year>` sections like `### 10 Sep 2023`.

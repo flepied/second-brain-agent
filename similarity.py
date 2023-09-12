@@ -11,6 +11,15 @@ from dotenv import load_dotenv
 from lib import get_vectorstore
 
 
+def split_filter(args):
+    "Split the filter arguments into an and query for chromadb"
+    if len(args) == 0:
+        return {}
+    if len(args) == 1:
+        return dict([args[0].split("=", 1)])
+    return {"$and": [{arg.split("=", 1)[0]: arg.split("=", 1)[1]} for arg in args]}
+
+
 def main(query, **kwargs):
     "Entry point"
     vector_store = get_vectorstore()
@@ -21,7 +30,6 @@ def main(query, **kwargs):
 
 if __name__ == "__main__":
     load_dotenv()
-    args = [arg.split("=", 1) for arg in sys.argv[2:]]
-    main(sys.argv[1], filter=dict(args))
+    main(sys.argv[1], where=split_filter(sys.argv[2:]))
 
 # similarity.py ends here
