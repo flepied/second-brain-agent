@@ -50,6 +50,10 @@ if grep -q "I don't know." <<< "$RES"; then
     exit 1
 fi
 
+# wait a bit to be sure to have all the logs in different seconds
+# for the vacuum cleaning process to work
+sleep 2
+
 # test changing a document but not its content
 sudo journalctl -u sba-md --rotate
 sudo journalctl -u sba-md --vacuum-time=1s

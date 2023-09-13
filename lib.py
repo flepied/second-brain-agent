@@ -198,7 +198,7 @@ class DateTimeEncoder(json.JSONEncoder):
     "Encode datetime objects to json"
 
     def default(self, o):
-        "Encode datetime objects to json"
+        "Encode datetime objects to json as isoformat strings"
         if isinstance(o, datetime.datetime):
             return o.isoformat()
         return super().default(o)
@@ -208,9 +208,12 @@ class DateTimeEncoder(json.JSONEncoder):
 def datetime_decoder(dct):
     "Decode datetime objects from json"
     for key, val in dct.items():
-        if key == "last_accessed_at":
+        if key.endswith("_at") or key.find("date") != -1:
             try:
-                dct[key] = datetime.datetime.fromisoformat(val)
+                if isinstance(val, str):
+                    dct[key] = datetime.datetime.fromisoformat(val)
+                elif isinstance(val, float):
+                    dct[key] = datetime.datetime.fromtimestamp(val)
             except ValueError:
                 pass  # Not a valid datetime string, leave as is
     return dct
