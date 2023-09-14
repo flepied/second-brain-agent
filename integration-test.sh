@@ -13,16 +13,7 @@ EOF
 
 bash -x ./install-systemd-services.sh
 
-cat > $HOME/Notes/langchain.md <<EOF
-## References
-
-- https://docs.langchain.com/docs/
-- https://blog.langchain.dev/conversational-retrieval-agents/
-
-Plan-and-Solve Prompting: Improving Zero-Shot
-Chain-of-Thought Reasoning by Large Language Models
-https://arxiv.org/pdf/2305.04091.pdf
-EOF
+sleep 5
 
 TRY=0
 docker-compose ps
@@ -37,6 +28,17 @@ done
 
 sudo journalctl -u sba-md
 sudo journalctl -u sba-txt
+
+cat > $HOME/Notes/langchain.md <<EOF
+## References
+
+- https://docs.langchain.com/docs/
+- https://blog.langchain.dev/conversational-retrieval-agents/
+
+Plan-and-Solve Prompting: Improving Zero-Shot
+Chain-of-Thought Reasoning by Large Language Models
+https://arxiv.org/pdf/2305.04091.pdf
+EOF
 
 # test the vector store
 RES=$(poetry run ./similarity.py "What is langchain?")
@@ -71,7 +73,7 @@ while [ $TRY -lt 30 ]; do
 done
 sudo journalctl -u sba-md
 jq . $HOME/.second-brain/checksums.json
-sudo journalctl -u sba-md | grep "skipping $HOME/Notes/langchain.md as content did not change"
+sudo journalctl -u sba-md | grep "skipping $HOME/Notes/langchain.md / .* as content did not change"
 
 # wait a bit to be sure to have all the logs in different seconds
 # for the vacuum cleaning process to work

@@ -38,6 +38,7 @@ pydantic = ">=1.9,<2.0"
 altair = "<5"
 protobuf = "~=3.19.0"
 click = "=8"
+assemblyai = "^0.17.0"
 
 [tool.poetry.group.test]  # This part can be left out
 
