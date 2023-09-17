@@ -86,6 +86,15 @@ def is_same_time(fname, oname):
     return False
 
 
+def is_history_filename(fname):
+    "Check if the filename is an history filename"
+    return (
+        fname.find("History") != -1
+        or fname.find("Journal") != -1
+        or fname.find("StatusReport") != -1
+    )
+
+
 def local_link(path):
     "Create a local link to a file"
     if path.startswith("/"):

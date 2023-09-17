@@ -28,7 +28,7 @@ from langchain.document_loaders.generic import GenericLoader
 from langchain.document_loaders.parsers import OpenAIWhisperParser
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
 
-from lib import ChecksumStore, DateTimeEncoder, is_same_time
+from lib import ChecksumStore, DateTimeEncoder, is_history_filename, is_same_time
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
 HTTP_REGEX = re.compile(r"https://[^ ]+")
@@ -310,7 +310,8 @@ def split_md_file(fname, md_dir):
     with open(fname, "r", encoding="UTF-8") as fptr:
         content = fptr.read()
     files = []
-    if fname.find("History") != -1:
+    # journal/history files have only history entries
+    if is_history_filename(fname):
         history = DATE2_REGEXP.split(content)
         level = 1
     elif content.find("## History") != -1:
