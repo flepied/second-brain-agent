@@ -105,6 +105,14 @@ $ journalctl --unit=sba-txt.service
 $ ./similarity.py "What is LangChain?" type=note
 ```
 
+### Searching for new connections between notes
+
+Use the vector store to find new conncetions between notes:
+
+```ShellSession
+$ ./smart_connections.py
+```
+
 ### Launching the web UI
 
 Launch this command to access the web UI:

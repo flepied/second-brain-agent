@@ -11,6 +11,17 @@ SRCDIR=$HOME/Notes
 DSTDIR=$HOME/.second-brain
 EOF
 
+cat > $HOME/Notes/langchain.md <<EOF
+## References
+
+- https://docs.langchain.com/docs/
+- https://blog.langchain.dev/conversational-retrieval-agents/
+
+Plan-and-Solve Prompting: Improving Zero-Shot
+Chain-of-Thought Reasoning by Large Language Models
+https://arxiv.org/pdf/2305.04091.pdf
+EOF
+
 bash -x ./install-systemd-services.sh
 
 sleep 5
