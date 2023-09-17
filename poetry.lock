@@ -166,6 +166,26 @@ test = ["anyio[trio]", "coverage[toml] (>=7)", "hypothesis (>=4.0)", "psutil (>=
 trio = ["trio (>=0.22)"]
 
 [[package]]
+name = "assemblyai"
+version = "0.17.0"
+description = "AssemblyAI Python SDK"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "assemblyai-0.17.0-py3-none-any.whl", hash = "sha256:3bad8cc7545b5b831f243f1b2f01bc4cc0e8aad78babf44c8008f2293c540e36"},
+    {file = "assemblyai-0.17.0.tar.gz", hash = "sha256:6d5bbfbbaa626ed021c3d3dec0ca52b3ebf6e6ef277ac76a7a6aed52182d531e"},
+]
+
+[package.dependencies]
+httpx = ">=0.19.0"
+pydantic = ">=1.7.0,<1.10.7 || >1.10.7"
+typing-extensions = ">=3.7"
+websockets = ">=11.0"
+
+[package.extras]
+extras = ["pyaudio (>=0.2.13)"]
+
+[[package]]
 name = "astroid"
 version = "2.15.6"
 description = "An abstract syntax tree for Python with inference support."
@@ -1452,6 +1472,27 @@ files = [
 ]
 
 [[package]]
+name = "httpcore"
+version = "0.18.0"
+description = "A minimal low-level HTTP client."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "httpcore-0.18.0-py3-none-any.whl", hash = "sha256:adc5398ee0a476567bf87467063ee63584a8bce86078bf748e48754f60202ced"},
+    {file = "httpcore-0.18.0.tar.gz", hash = "sha256:13b5e5cd1dca1a6636a6aaea212b19f4f85cd88c366a2b82304181b769aab3c9"},
+]
+
+[package.dependencies]
+anyio = ">=3.0,<5.0"
+certifi = "*"
+h11 = ">=0.13,<0.15"
+sniffio = "==1.*"
+
+[package.extras]
+http2 = ["h2 (>=3,<5)"]
+socks = ["socksio (==1.*)"]
+
+[[package]]
 name = "httptools"
 version = "0.6.0"
 description = "A collection of framework independent HTTP protocol utils."
@@ -1497,6 +1538,29 @@ files = [
 
 [package.extras]
 test = ["Cython (>=0.29.24,<0.30.0)"]
+
+[[package]]
+name = "httpx"
+version = "0.25.0"
+description = "The next generation HTTP client."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "httpx-0.25.0-py3-none-any.whl", hash = "sha256:181ea7f8ba3a82578be86ef4171554dd45fec26a02556a744db029a0a27b7100"},
+    {file = "httpx-0.25.0.tar.gz", hash = "sha256:47ecda285389cb32bb2691cc6e069e3ab0205956f681c5b2ad2325719751d875"},
+]
+
+[package.dependencies]
+certifi = "*"
+httpcore = ">=0.18.0,<0.19.0"
+idna = "*"
+sniffio = "*"
+
+[package.extras]
+brotli = ["brotli", "brotlicffi"]
+cli = ["click (==8.*)", "pygments (==2.*)", "rich (>=10,<14)"]
+http2 = ["h2 (>=3,<5)"]
+socks = ["socksio (==1.*)"]
 
 [[package]]
 name = "huggingface-hub"
@@ -5231,4 +5295,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.12"
-content-hash = "580d8c0734a530aedb8cf12328b361b2c12a82d5f57b12d65bbdfe4b78ad1599"
+content-hash = "8af529a39d0301475bd0fd0c483d96687978be4baed180716393e462c2fb8978"

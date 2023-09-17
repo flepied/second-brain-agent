@@ -15,11 +15,12 @@ import re
 import shutil
 import sys
 
+import assemblyai as aai
 import yt_dlp
 from dotenv import load_dotenv
 from langchain.document_loaders import (
+    AssemblyAIAudioTranscriptLoader,
     PyMuPDFLoader,
-    UnstructuredMarkdownLoader,
     UnstructuredURLLoader,
 )
 from langchain.document_loaders.blob_loaders.youtube_audio import YoutubeAudioLoader
@@ -69,47 +70,50 @@ def process_youtube_line(basename, line, directory, last_accessed_at):
         transcript_path = get_output_file_path(directory, video_id)
         if os.path.exists(transcript_path):
             print(f"transcript already exists for video {video_id}", file=sys.stderr)
-        else:
-            try:
-                transcript = YouTubeTranscriptApi.get_transcript(
-                    video_id, languages=["en", "fr"]
-                )
-                save_content(
-                    transcript_path,
-                    "\n".join([entry["text"] for entry in transcript]),
-                    url=f"https://www.youtube.com/watch/{video_id}",
-                    referer=basename,
-                    type="youtube",
-                    last_accessed_at=last_accessed_at,
-                )
-                return True
-            except _errors.TranscriptsDisabled:
-                print(f"transcript disabled for video {video_id}", file=sys.stderr)
-            except _errors.NoTranscriptFound:
-                print(f"no transcript found for video {video_id}", file=sys.stderr)
-                print(f"writing video transcript {video_id}.txt", file=sys.stderr)
-            print(f"falling back to whisper for {video_id}", file=sys.stderr)
-            # Directory to save audio files
-            save_dir = os.path.join(directory, "Orig")
-
-            # Transcribe the videos to text
-            loader = GenericLoader(
-                YoutubeAudioLoader([f"https://youtu.be/{video_id}"], save_dir),
-                OpenAIWhisperParser(),
+            return True
+        try:
+            transcript = YouTubeTranscriptApi.get_transcript(
+                video_id, languages=["en", "fr"]
             )
-            try:
-                docs = loader.load()
-            except yt_dlp.utils.DownloadError:
-                print(f"unable to download youtube video {video_id}", file=sys.stderr)
-                return False
             save_content(
                 transcript_path,
-                "\n".join([doc.page_content for doc in docs]),
+                "\n".join([entry["text"] for entry in transcript]),
                 url=f"https://www.youtube.com/watch/{video_id}",
                 referer=basename,
                 type="youtube",
                 last_accessed_at=last_accessed_at,
             )
+            return True
+        except _errors.TranscriptsDisabled:
+            print(f"transcript disabled for video {video_id}", file=sys.stderr)
+        except _errors.NoTranscriptFound:
+            print(f"no transcript found for video {video_id}", file=sys.stderr)
+            print(f"writing video transcript {video_id}.txt", file=sys.stderr)
+        print(f"falling back to whisper for {video_id}", file=sys.stderr)
+        # Directory to save audio files
+        save_dir = os.path.join(directory, "Orig")
+
+        # Transcribe the videos to text
+        loader = GenericLoader(
+            YoutubeAudioLoader([f"https://youtu.be/{video_id}"], save_dir),
+            OpenAIWhisperParser(),
+        )
+        try:
+            docs = loader.load()
+        except yt_dlp.utils.DownloadError:
+            print(
+                f"ERROR: unable to download youtube video {video_id}",
+                file=sys.stderr,
+            )
+            return False
+        save_content(
+            transcript_path,
+            "\n".join([doc.page_content for doc in docs]),
+            url=f"https://www.youtube.com/watch/{video_id}",
+            referer=basename,
+            type="youtube",
+            last_accessed_at=last_accessed_at,
+        )
         return True
     return False
 
@@ -171,7 +175,52 @@ def process_url_line(basename, line, directory, last_accessed_at):
                 last_accessed_at=last_accessed_at,
             )
         else:
-            print(f"unable to get url content for {url}", file=sys.stderr)
+            print(f"ERROR: unable to get url content for {url}", file=sys.stderr)
+        return True
+    return False
+
+
+MP3_REGEX = re.compile(r"(https://.*\.mp3)")
+
+
+def process_mp3_line(basename, line, directory, last_accessed_at):
+    "Process mp3 url by extracting the text using AssemblyAI"
+    res = MP3_REGEX.search(line)
+    if res:
+        print(f"found mp3 url {res.group(0)}", file=sys.stderr)
+        aai_api_key = os.getenv("ASSEMBLYAI_API_KEY")
+        if aai_api_key is None:
+            print(
+                "ERROR: ASSEMBLYAI_API_KEY environment variable is not set",
+                file=sys.stderr,
+            )
+            return True
+        url = res.group(0)
+        filename_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
+        output_path = get_output_file_path(directory, filename_hash)
+        if os.path.exists(output_path):
+            print(f"file already exists for {output_path}", file=sys.stderr)
+            return True
+        config = aai.TranscriptionConfig(
+            speaker_labels=True,
+            auto_chapters=True,
+            entity_detection=True,
+        )
+
+        output = AssemblyAIAudioTranscriptLoader(
+            file_path=url, config=config, api_key=aai_api_key
+        ).load()
+        if output:
+            save_content(
+                output_path,
+                output[0].page_content,
+                url=url,
+                referer=basename,
+                type="audio",
+                last_accessed_at=last_accessed_at,
+            )
+        else:
+            print(f"ERROR: unable to get mp3 transcript for {url}", file=sys.stderr)
         return True
     return False
 
@@ -181,6 +230,7 @@ def process_line(basename, line, directory, last_accessed_at):
     return (
         line == ""
         or process_youtube_line(basename, line, directory, last_accessed_at)
+        or process_mp3_line(basename, line, directory, last_accessed_at)
         or process_url_line(basename, line, directory, last_accessed_at)
     )
 
@@ -245,6 +295,11 @@ def get_date(date_str):
             return date_str
 
 
+def clean_referer(referer):
+    "remove numbers from the referer"
+    return re.sub(r"\d+", "", referer)
+
+
 DATE2_REGEXP = re.compile(r"^## (\d\d \w+ \d\d\d\d)", re.MULTILINE)
 DATE3_REGEXP = re.compile(r"^### (\d\d \w+ \d\d\d\d)", re.MULTILINE)
 
@@ -281,7 +336,7 @@ def split_md_file(fname, md_dir):
                 date = history_date.strftime("%Y%m%d")
             part_fname = os.path.join(md_dir, basename + date + ".md")
             with open(part_fname, "w", encoding="UTF-8") as fptr:
-                fptr.write(f"---\nReferer: {basename}\n---\n\n")
+                fptr.write(f"---\nReferer: {clean_referer(basename)}\n---\n\n")
                 fptr.write("# " + history[idx] + remove_dash(history[idx + 1], level))
             mtime = (history_date + datetime.timedelta(hours=12)).timestamp()
             os.utime(part_fname, (mtime, mtime))
@@ -292,17 +347,17 @@ def split_md_file(fname, md_dir):
 
 def write_output_file(md_file, out_dir, metadata):
     "Write the output json file from a markdown file and process the its content"
-    loader = UnstructuredMarkdownLoader(md_file)
-    output = loader.load()[0]
+    with open(md_file, "r", encoding="UTF-8") as fptr:
+        output = fptr.read()
     md_stat = os.stat(md_file)
     last_accessed_at = datetime.datetime.fromtimestamp(md_stat.st_mtime)
     basename = os.path.basename(md_file[:-3])
     if metadata is None:
         # add metadata and remove header from content from the first file
-        metadata, content = get_metadata(output.page_content)
+        metadata, content = get_metadata(output)
         metadata["type"] = "notes"
     else:
-        new_metadata, content = get_metadata(output.page_content)
+        new_metadata, content = get_metadata(output)
         metadata.update(new_metadata)
         metadata["type"] = "history"
     metadata["last_accessed_at"] = last_accessed_at
@@ -347,7 +402,7 @@ def process_md_file(fname, out_dir, checksum_store):
         for md_file in md_files:
             metadata = write_output_file(md_file, out_dir, metadata)
     else:
-        print(f"skipping {fname} as content did not change", file=sys.stderr)
+        print(f"skipping {fname} / {oname} as content did not change", file=sys.stderr)
         return False
     print(f"processed '{fname}'", file=sys.stderr)
     return True
