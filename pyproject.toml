@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "second-brain-agent"
-version = "0.4.1"
+version = "0.5.0"
 description = "Second Brain AI Agent"
 authors = ["Frederic Lepied <flepied@gmail.com>"]
 license = "GPL 3.0"
