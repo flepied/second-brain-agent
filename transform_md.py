@@ -8,6 +8,7 @@ json files too.
 """
 
 import datetime
+import glob
 import hashlib
 import json
 import os
@@ -393,6 +394,22 @@ def process_md_file(fname, out_dir, checksum_store):
         return False
     basename = os.path.basename(fname[:-3])
     oname = get_output_file_path(out_dir, basename)
+    if not os.path.exists(fname):
+        print(f"removing {oname} as {fname} do not exist anymore", file=sys.stderr)
+        os.remove(oname)
+        if is_history_filename(fname):
+            for hname in glob.glob(
+                os.path.join(out_dir, "Markdown", basename + "*.md")
+            ):
+                basename = os.path.basename(hname[:-3])
+                oname = get_output_file_path(out_dir, basename)
+                print(
+                    f"removing {hname} / {oname} as {fname} do not exist anymore",
+                    file=sys.stderr,
+                )
+                os.remove(hname)
+                os.remove(oname)
+        return True
     if is_same_time(fname, oname):
         print(f"skipping {fname} as there is no time change", file=sys.stderr)
         return False
