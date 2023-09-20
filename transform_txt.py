@@ -73,10 +73,30 @@ def validate_and_extract_url(fname, basename, out_dir):
     return metadata, data["text"]
 
 
+def remove_related_files(fname, indexer, out_dir):
+    "Remove related files"
+    basename = os.path.basename(fname).split(".")[0].split("-")[0]
+    results = indexer.get(
+        where={"$or": [{"main_source": {"$eq": fname}}, {"referer": {"$eq": basename}}]}
+    )
+    print(
+        f"Removing {len(results['ids'])} related files to {fname}: {' '.join(results['ids'])}",
+        file=sys.stderr,
+    )
+    if len(results["ids"]) > 0:
+        indexer.delete(results["ids"])
+        for chunk_id in results["ids"]:
+            os.remove(os.path.join(out_dir, "Chunk", chunk_id))
+
+
 def process_file(fname: str, out_dir: str, indexer, splitter):
     "Cut a text file in multiple chunks"
     basename = os.path.basename(fname[:-5])
     print(f"Processing '{fname}' '{basename}'", file=sys.stderr)
+    if not os.path.exists(fname):
+        print(f"File {fname} does not exist anymore", file=sys.stderr)
+        remove_related_files(fname, indexer, out_dir)
+        return
     metadata, content = validate_and_extract_url(fname, basename, out_dir)
     if metadata is False:
         return

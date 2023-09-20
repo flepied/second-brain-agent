@@ -11,35 +11,36 @@ SRCDIR=$HOME/Notes
 DSTDIR=$HOME/.second-brain
 EOF
 
-cat > $HOME/Notes/langchain.md <<EOF
-## References
-
-- https://docs.langchain.com/docs/
-- https://blog.langchain.dev/conversational-retrieval-agents/
-
-Plan-and-Solve Prompting: Improving Zero-Shot
-Chain-of-Thought Reasoning by Large Language Models
-https://arxiv.org/pdf/2305.04091.pdf
-EOF
-
 bash -x ./install-systemd-services.sh
 
 sleep 5
 
+# wait for chromadb to be started
 TRY=0
-docker-compose ps
-while [ $TRY -lt 24 ]; do
-    TRY=$(( TRY + 1 ))
-    if docker-compose logs | grep -q "Application startup complete"; then
+while [ $TRY -lt 30 ]; do
+     TRY=$(( TRY + 1 ))
+    if docker-compose ps | grep -q " Up "; then
+        echo "*** Found finished marker"
         break
-    fi
-    docker-compose logs
+     fi
+    sleep 1
+done
+docker-compose ps
+docker-compose ps | grep -q " Up "
+
+TRY=0
+while [ $TRY -lt 24 ]; do
+     TRY=$(( TRY + 1 ))
+    if docker-compose logs | grep -q "Application startup complete"; then
+        echo "*** Found finished marker"
+        break
+     fi
     sleep 5
 done
+docker-compose logs
+docker-compose logs | grep -q "Application startup complete"
 
-sudo journalctl -u sba-md
-sudo journalctl -u sba-txt
-
+# create the document
 cat > $HOME/Notes/langchain.md <<EOF
 ## References
 
@@ -50,6 +51,21 @@ Plan-and-Solve Prompting: Improving Zero-Shot
 Chain-of-Thought Reasoning by Large Language Models
 https://arxiv.org/pdf/2305.04091.pdf
 EOF
+
+# wait for the document to be processed
+TRY=0
+while [ $TRY -lt 30 ]; do
+    TRY=$(( TRY + 1 ))
+    if sudo journalctl -u sba-txt | grep -q "Storing .* chunks to the db for metadata={'type': 'notes', 'url': 'file://$HOME/Notes/langchain.md'}'"; then
+        echo "*** Found finished marker"
+        break
+    fi
+    sleep 1
+done
+sudo journalctl -u sba-md
+sudo journalctl -u sba-txt
+
+sudo journalctl -u sba-md | grep -q "processed '$HOME/Notes/langchain.md'"
 
 # test the vector store
 RES=$(poetry run ./similarity.py "What is langchain?")
@@ -76,7 +92,7 @@ touch $HOME/Notes/langchain.md
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if sudo journalctl -u sba-md | grep -q "processed '$HOME/Notes/langchain.md'"; then
+    if sudo journalctl -u sba-md | grep "skipping $HOME/Notes/langchain.md / .* as content did not change"; then
         echo "*** Found finished marker"
         break
     fi
@@ -117,5 +133,45 @@ NB=$(sudo journalctl -u sba-md | grep -c "content is the same for")
 # in md doc
 echo "*** NB=$NB"
 test "$NB" -eq 2
+
+# wait a bit to be sure to have all the logs in different seconds
+# for the vacuum cleaning process to work
+sleep 2
+
+# test removing a document
+sudo journalctl -u sba-md --rotate
+sudo journalctl -u sba-md --vacuum-time=1s
+sudo journalctl -u sba-txt --rotate
+sudo journalctl -u sba-txt --vacuum-time=1s
+
+rm "$HOME/Notes/langchain.md"
+
+TRY=0
+while [ $TRY -lt 5 ]; do
+    TRY=$(( TRY + 1 ))
+    if sudo journalctl -u sba-md | grep -q "removing $HOME/Text/langchain.json as $HOME/Notes/langchain.md do not exist anymore"; then
+        echo "*** Found finished marker"
+        break
+    fi
+    sleep 1
+done
+sudo journalctl -u sba-md
+sudo journalctl -u sba-md | grep -q "removing $HOME/.second-brain/Text/langchain.json as $HOME/Notes/langchain.md do not exist anymore"
+
+TRY=0
+while [ $TRY -lt 5 ]; do
+    TRY=$(( TRY + 1 ))
+    if sudo journalctl -u sba-txt | grep -q "Removing .* related files to $HOME/.second-brain/Text/langchain.json:"; then
+        echo "*** Found finished marker"
+        break
+    fi
+    sleep 1
+done
+sudo journalctl -u sba-txt
+sudo journalctl -u sba-txt | grep -q "Removing .* related files to $HOME/.second-brain/Text/langchain.json:"
+
+# be sure we don't have anymore document in the vector database
+poetry run ./similarity.py ""
+poetry run ./similarity.py "" 2>&1 | grep "Number of documents in the vector store: 0"
 
 # integration-test.sh ends here
