@@ -18,10 +18,21 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run pre-commit checks
+      - name: Install poetry
         run: |
           set -ex
           curl -sSL https://install.python-poetry.org | python3 -
+          poetry --version
+
+      - name: Install python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'poetry'
+
+      - name: Run pre-commit checks
+        run: |
+          set -ex
           poetry install --with test
           poetry run pip3 install torch
           poetry run pre-commit run -a --show-diff-on-failure -v
