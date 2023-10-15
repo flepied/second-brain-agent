@@ -10,10 +10,14 @@ import sys
 import time
 
 import chromadb
-from langchain import OpenAI
 from langchain.chains import RetrievalQAWithSourcesChain
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
+
+# pylint: disable=no-name-in-module
+from langchain.llms import OpenAI
+
+# pylint: disable=no-name-in-module
 from langchain.vectorstores import Chroma
 
 
