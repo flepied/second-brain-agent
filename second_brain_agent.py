@@ -4,6 +4,9 @@ Take a question from the user and call the LLM for an answer using the
 closest documents stored in the vector database as context.
 """
 
+import re
+import sys
+
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -11,9 +14,15 @@ from htmlTemplates import bot_template, css, user_template
 from lib import Agent
 
 
+def clean_email(response):
+    "Clean the email address from the response"
+    return re.sub(r"<(.*@.*)>", r"&lt;\1&gt;", response)
+
+
 def handle_userinput(user_question):
     "Handle the input from the user as a question to the LLM"
-    response = st.session_state.agent.html_question(user_question)
+    response = clean_email(st.session_state.agent.html_question(user_question))
+    print(response, file=sys.stderr)
     st.write(
         user_template.replace("{{MSG}}", user_question),
         bot_template.replace("{{MSG}}", response),
