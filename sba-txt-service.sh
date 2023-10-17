@@ -14,8 +14,16 @@ fi
 
 mkdir -p "$DSTDIR/Chunk" "$DSTDIR/Db"
 
-docker-compose up -d
-docker-compose ps
+if type -p podman-compose; then
+    compose=podman-compose
+else
+    compose=docker-compose
+fi
+
+set -e
+
+$compose up -d
+$compose ps
 
 ./monitor.sh ./transform_txt.py "$DSTDIR/Text" "$DSTDIR"
 

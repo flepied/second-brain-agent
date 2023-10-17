@@ -18,7 +18,6 @@ repos:
         entry: poetry run pytest
         language: python
         pass_filenames: false
-        always_run: true
         files: ".*\\.py$"
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
