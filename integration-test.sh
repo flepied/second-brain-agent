@@ -56,16 +56,16 @@ EOF
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if sudo journalctl -u sba-txt | grep -q "Storing .* chunks to the db for metadata={'type': 'notes', 'url': 'file://$HOME/Notes/langchain.md'}'"; then
+    if journalctl --user -u sba-txt | grep -q "Storing .* chunks to the db for metadata={'type': 'notes', 'url': 'file://$HOME/Notes/langchain.md'}'"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
-sudo journalctl -u sba-md
-sudo journalctl -u sba-txt
+journalctl --user -u sba-md
+journalctl --user -u sba-txt
 
-sudo journalctl -u sba-md | grep -q "processed '$HOME/Notes/langchain.md'"
+journalctl --user -u sba-md | grep -q "processed '$HOME/Notes/langchain.md'"
 
 # test the vector store
 RES=$(poetry run ./similarity.py "What is langchain?")
@@ -84,31 +84,31 @@ fi
 sleep 2
 
 # test changing a document but not its content
-sudo journalctl -u sba-md --rotate
-sudo journalctl -u sba-md --vacuum-time=1s
+sudo journalctl --user -u sba-md --rotate
+sudo journalctl --user -u sba-md --vacuum-time=1s
 
 touch $HOME/Notes/langchain.md
 
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if sudo journalctl -u sba-md | grep "skipping $HOME/Notes/langchain.md / .* as content did not change"; then
+    if journalctl --user -u sba-md | grep "skipping $HOME/Notes/langchain.md / .* as content did not change"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
-sudo journalctl -u sba-md
+journalctl --user -u sba-md
 jq . $HOME/.second-brain/checksums.json
-sudo journalctl -u sba-md | grep "skipping $HOME/Notes/langchain.md / .* as content did not change"
+journalctl --user -u sba-md | grep "skipping $HOME/Notes/langchain.md / .* as content did not change"
 
 # wait a bit to be sure to have all the logs in different seconds
 # for the vacuum cleaning process to work
 sleep 2
 
 # test changing a document but not to all contents
-sudo journalctl -u sba-md --rotate
-sudo journalctl -u sba-md --vacuum-time=1s
+sudo journalctl --user -u sba-md --rotate
+sudo journalctl --user -u sba-md --vacuum-time=1s
 
 cat >> $HOME/Notes/langchain.md <<EOF
 ## Links
@@ -119,15 +119,15 @@ EOF
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if sudo journalctl -u sba-md | grep -q "processed '$HOME/Notes/langchain.md'"; then
+    if journalctl --user -u sba-md | grep -q "processed '$HOME/Notes/langchain.md'"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
-sudo journalctl -u sba-md
+journalctl --user -u sba-md
 
-NB=$(sudo journalctl -u sba-md | grep -c "content is the same for")
+NB=$(journalctl --user -u sba-md | grep -c "content is the same for")
 
 # pdf content is never processed again so the only ones are the 2 url
 # in md doc
@@ -139,36 +139,36 @@ test "$NB" -eq 2
 sleep 2
 
 # test removing a document
-sudo journalctl -u sba-md --rotate
-sudo journalctl -u sba-md --vacuum-time=1s
-sudo journalctl -u sba-txt --rotate
-sudo journalctl -u sba-txt --vacuum-time=1s
+sudo journalctl --user -u sba-md --rotate
+sudo journalctl --user -u sba-md --vacuum-time=1s
+sudo journalctl --user -u sba-txt --rotate
+sudo journalctl --user -u sba-txt --vacuum-time=1s
 
 rm "$HOME/Notes/langchain.md"
 
 TRY=0
 while [ $TRY -lt 5 ]; do
     TRY=$(( TRY + 1 ))
-    if sudo journalctl -u sba-md | grep -q "removing $HOME/Text/langchain.json as $HOME/Notes/langchain.md do not exist anymore"; then
+    if journalctl --user -u sba-md | grep -q "removing $HOME/Text/langchain.json as $HOME/Notes/langchain.md do not exist anymore"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
-sudo journalctl -u sba-md
-sudo journalctl -u sba-md | grep -q "removing $HOME/.second-brain/Text/langchain.json as $HOME/Notes/langchain.md do not exist anymore"
+journalctl --user -u sba-md
+journalctl --user -u sba-md | grep -q "removing $HOME/.second-brain/Text/langchain.json as $HOME/Notes/langchain.md do not exist anymore"
 
 TRY=0
 while [ $TRY -lt 5 ]; do
     TRY=$(( TRY + 1 ))
-    if sudo journalctl -u sba-txt | grep -q "Removing .* related files to $HOME/.second-brain/Text/langchain.json:"; then
+    if journalctl --user -u sba-txt | grep -q "Removing .* related files to $HOME/.second-brain/Text/langchain.json:"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
-sudo journalctl -u sba-txt
-sudo journalctl -u sba-txt | grep -q "Removing .* related files to $HOME/.second-brain/Text/langchain.json:"
+journalctl --user -u sba-txt
+journalctl --user -u sba-txt | grep -q "Removing .* related files to $HOME/.second-brain/Text/langchain.json:"
 
 # be sure we don't have anymore document in the vector database
 poetry run ./similarity.py ""
