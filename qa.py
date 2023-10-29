@@ -10,6 +10,7 @@ import lib
 
 load_dotenv()
 agent = lib.Agent()
-print(agent.question(" ".join(sys.argv[1:])))
+metadata = dict([arg.split("=", 1) for arg in sys.argv[2:]])
+print(agent.question(sys.argv[1], metadata))
 
 # qa.py ends here
