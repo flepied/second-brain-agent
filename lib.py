@@ -125,7 +125,7 @@ class Agent:
             response["sources"] not in ("None.", "N/A", "I don't know.")
             and len(response["source_documents"]) > 0
         ):
-            sources = "- " + "\n- ".join(self._get_sources(response))
+            sources = "- " + "\n- ".join(self._filter_file(self._get_sources(response)))
             return f"{response['answer']}\nSources:\n{sources}"
         return response["answer"]
 
@@ -144,6 +144,10 @@ class Agent:
             )
             return f"{response['answer']}\nSources:\n{sources}"
         return response["answer"]
+
+    def _filter_file(self, sources):
+        "filter our file:// at the beginning of the strings"
+        return [src[7:] if src.startswith("file://") else src for src in sources]
 
     def _get_response(self, user_question, metadata):
         "Get the response from the LLM and vector store"
