@@ -10,7 +10,7 @@ import sys
 import time
 
 import chromadb
-from langchain.chains import RetrievalQAWithSourcesChain
+from langchain.chains import VectorDBQAWithSourcesChain
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 
@@ -112,55 +112,60 @@ class Agent:
     def __init__(self):
         "Initialize the agent"
         self.vectorstore = get_vectorstore()
-        self.chain = RetrievalQAWithSourcesChain.from_llm(
+        self.chain = VectorDBQAWithSourcesChain.from_llm(
             llm=OpenAI(temperature=0),
-            retriever=self.vectorstore.as_retriever(),
+            vectorstore=self.vectorstore,
+            return_source_documents=True,
         )
 
-    def question(self, user_question):
+    def question(self, user_question, metadata=None):
         "Ask a question and format the answer for text"
-        response = self._get_response(user_question)
-        if response["sources"] != "None.":
-            sources = "- " + "\n- ".join(self._get_real_sources(response["sources"]))
+        response = self._get_response(user_question, metadata)
+        if (
+            response["sources"] not in ("None.", "N/A", "I don't know.")
+            and len(response["source_documents"]) > 0
+        ):
+            sources = "- " + "\n- ".join(self._get_sources(response))
             return f"{response['answer']}\nSources:\n{sources}"
         return response["answer"]
 
-    def html_question(self, user_question):
+    def html_question(self, user_question, metadata=None):
         "Ask a question and format the answer for html"
-        response = self._get_response(user_question)
-        if response["sources"] != "None.":
+        response = self._get_response(user_question, metadata)
+        if (
+            response["sources"] not in ("None.", "N/A", "I don't know.")
+            and len(response["source_documents"]) > 0
+        ):
             sources = "- " + "\n- ".join(
                 [
                     f'<a href="{local_link(src)}">{src}</a>'
-                    for src in self._get_real_sources(response["sources"])
+                    for src in self._get_sources(response)
                 ]
             )
             return f"{response['answer']}\nSources:\n{sources}"
         return response["answer"]
 
-    def _get_response(self, user_question):
+    def _get_response(self, user_question, metadata):
         "Get the response from the LLM and vector store"
-        return self.chain({"question": user_question})
+        self.chain.search_kwargs = self._build_filter(metadata)
+        res = self.chain({"question": user_question})
+        return res
 
-    def _get_real_sources(self, sources):
+    def _get_sources(self, resp):
         "Get the url instead of the chunk sources"
-        real_sources = []
-        for source in sources.split(", "):
-            results = self.vectorstore.get(
-                include=["metadatas"], where={"source": source}
-            )
-            if (
-                results
-                and "metadatas" in results
-                and len(results["metadatas"]) > 0
-                and "url" in results["metadatas"][0]
-            ):
-                url = results["metadatas"][0]["url"]
-                if url not in real_sources:
-                    real_sources.append(url)
-            else:
-                real_sources.append(source)
-        return real_sources
+        ret = []
+        for doc in resp["source_documents"]:
+            if doc.metadata["url"] not in ret:
+                ret.append(doc.metadata["url"])
+        return ret
+
+    def _build_filter(self, metadata):
+        "Build the filter for the vector store from the metadata"
+        if metadata is None or len(metadata) == 0:
+            return {}
+        if len(metadata) == 1:
+            return {"filter": metadata}
+        return {"filter": {"$and": [{key: metadata[key]} for key in metadata]}}
 
 
 class ChecksumStore:

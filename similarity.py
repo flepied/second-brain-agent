@@ -30,6 +30,8 @@ def main(query, **kwargs):
 
 if __name__ == "__main__":
     load_dotenv()
-    main(sys.argv[1], where=split_filter(sys.argv[2:]))
+    filters = split_filter(sys.argv[2:])
+    print(f"Searching for {sys.argv[1]} with filters {filters}", file=sys.stderr)
+    main(sys.argv[1], filter=filters)
 
 # similarity.py ends here
