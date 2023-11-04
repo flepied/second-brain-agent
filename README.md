@@ -44,11 +44,26 @@ graph TD
 A[Markdown files from your editor]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[Second Brain AI Agent]
 ```
 
-From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file it extracts pdf, url, youtube video and transforms them into text. There is some support to extract history data from the markdown files: if there is an `## History` section or the file name contains `History`, the file is split in multiple parts according to `<day> <month> <year>` sections like `### 10 Sep 2023`.
+From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file, it extracts pdf, url, youtube video and transforms them into text. There is some support to extract history data from the markdown files: if there is an `## History` section or the file name contains `History`, the file is split in multiple parts according to `<day> <month> <year>` sections like `### 10 Sep 2023`.
 
 From these text files, [transform_txt.py](transform_txt.py) breaks these text files into chunks, create a vector embeddings and then stores these vector embeddings into a vector database.
 
-The second brain agent is using the vector database to answer questions about your documents using a large language model.
+The second brain agent uses the vector database to get context for asking the question to the large language model. This process is called [Retrieval-augmented generation (RAG)](https://python.langchain.com/docs/use_cases/question_answering/).
+
+In reality, the process is more complex than a standard RAG. It is analyzing the question and then using a different chain according to the intent:
+
+```mermaid
+flowchart TD
+    A[Question] --> C[/Get Intent/]
+    C --> E[Summary Request] --> EA[/Extract all the chunks/] --> EB[/Summarize chunks/]
+    C --> F[pdf or URL Lookup] --> FA[/Extract URL/]
+    C --> D[Activity report]
+    C --> G[Regular Question]
+    D --> DA[/Get Period metadata/] --> DB[/Get Subject metadata/] --> DC[/Extract Question without time/] --> H[/Extract nearest documents\nfrom the vector database\nfiltered by the metadata/]
+    G --> GA[/Step back question/] --> GB[/Extract nearest documents\nfrom the vector database/]
+    H --> I[/Use the documents as context\nto ask the question to the LLM/]
+    GB --> I
+```
 
 ## Installation
 

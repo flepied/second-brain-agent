@@ -62,7 +62,7 @@ repos:
         pass_filenames: true
         language: system
         files: ".*\\.py$"
-        exclude: "htmlTemplates\\.py|test.*\\.py"
+        exclude: "htmlTemplates\\.py|test.*\\.py|extractors.py"
 
   - repo: local
     hooks:
