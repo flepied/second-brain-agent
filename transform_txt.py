@@ -38,6 +38,8 @@ def process_chunk(chunk, metadata, fname, basename, number, out_dir):
     chunk_metadata["part"] = number
     chunk_metadata["source"] = oname
     chunk_metadata["main_source"] = fname
+    if "referer" not in chunk_metadata:
+        chunk_metadata["referer"] = basename
     with open(oname, "w", encoding="utf-8") as out_f:
         print(chunk, file=out_f)
     # set the timestamp to be the same
