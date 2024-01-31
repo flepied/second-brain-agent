@@ -4,7 +4,6 @@ import sys
 from datetime import date
 from typing import Optional, Sequence
 
-from langchain.llms import OpenAI
 from langchain.llms.base import BaseLLM
 from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import (
@@ -12,6 +11,7 @@ from langchain.prompts import (
     FewShotChatMessagePromptTemplate,
     PromptTemplate,
 )
+from langchain_community.llms import OpenAI
 from pydantic import BaseModel
 
 _DEBUG = True

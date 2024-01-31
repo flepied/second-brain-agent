@@ -11,14 +11,14 @@ import time
 
 import chromadb
 from langchain.chains import VectorDBQAWithSourcesChain
-from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # pylint: disable=no-name-in-module
-from langchain.llms import OpenAI
+from langchain_community.vectorstores import Chroma
 
 # pylint: disable=no-name-in-module
-from langchain.vectorstores import Chroma
+from langchain_openai import OpenAI
 
 from extractors import (  # extract_sentence_no_time,
     extract_documents,
