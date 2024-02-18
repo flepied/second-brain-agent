@@ -110,8 +110,8 @@ $ ./install-systemd-services.sh
 To see the output of the md and txt services:
 
 ```ShellSession
-$ journalctl --unit=sba-md.service
-$ journalctl --unit=sba-txt.service
+$ journalctl --unit=sba-md.service --user
+$ journalctl --unit=sba-txt.service --user
 ```
 
 ### Doing a similarity search with the vector database
