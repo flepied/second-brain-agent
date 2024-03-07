@@ -19,14 +19,14 @@ import sys
 import assemblyai as aai
 import yt_dlp
 from dotenv import load_dotenv
-from langchain.document_loaders import (
+from langchain.document_loaders.blob_loaders.youtube_audio import YoutubeAudioLoader
+from langchain.document_loaders.generic import GenericLoader
+from langchain.document_loaders.parsers import OpenAIWhisperParser
+from langchain_community.document_loaders import (
     AssemblyAIAudioTranscriptLoader,
     PyMuPDFLoader,
     UnstructuredURLLoader,
 )
-from langchain.document_loaders.blob_loaders.youtube_audio import YoutubeAudioLoader
-from langchain.document_loaders.generic import GenericLoader
-from langchain.document_loaders.parsers import OpenAIWhisperParser
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
 
 from lib import ChecksumStore, DateTimeEncoder, is_history_filename, is_same_time
