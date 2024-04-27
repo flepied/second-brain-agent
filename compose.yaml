@@ -7,7 +7,7 @@ networks:
     driver: bridge
 services:
   server:
-    image: ghcr.io/chroma-core/chroma:0.4.24
+    image: ghcr.io/chroma-core/chroma:0.5.0
     volumes:
       - $DSTDIR/Db:/chroma/chroma:z
     ports:
