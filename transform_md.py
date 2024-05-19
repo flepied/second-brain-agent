@@ -321,6 +321,7 @@ def split_md_file(fname, md_dir):
     else:
         history = []
         files = [fname]
+        level = 0
     if len(history) >= 3:
         base_fname = os.path.join(md_dir, basename + ".md")
         with open(base_fname, "w", encoding="UTF-8") as fptr:
