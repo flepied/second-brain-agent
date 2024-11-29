@@ -2,13 +2,22 @@
 
 set -ex
 
-sudo apt-get install inotify-tools
+if [ -f /etc/redhat-release ]; then
+    sudo dnf install -y inotify-tools docker-compose
+else
+    sudo apt-get install inotify-tools docker-compose
+fi
 
-mkdir $HOME/.second-brain $HOME/Notes
+TOP=$(mktemp -d -p $HOME)
+
+mkdir $TOP/.second-brain $TOP/Notes
+
+# avoid losing my local env if testing locally :-)
+test ! -f .env
 
 cat > .env <<EOF
-SRCDIR=$HOME/Notes
-DSTDIR=$HOME/.second-brain
+SRCDIR=$TOP/Notes
+DSTDIR=$TOP/.second-brain
 EOF
 
 bash -x ./install-systemd-services.sh
@@ -41,7 +50,7 @@ docker-compose logs
 docker-compose logs | grep -q "Application startup complete"
 
 # create the document
-cat > $HOME/Notes/langchain.md <<EOF
+cat > $TOP/Notes/langchain.md <<EOF
 ## References
 
 - https://docs.langchain.com/docs/
@@ -56,16 +65,18 @@ EOF
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-txt | grep -q "Storing .* chunks to the db for metadata={'type': 'notes', 'url': 'file://$HOME/Notes/langchain.md'}'"; then
+    if journalctl --user -u sba-txt | grep -q "Storing .* chunks to the db for metadata={'type': 'notes', 'url': 'file://$TOP/Notes/langchain.md'}'"; then
         echo "*** Found finished marker"
         break
     fi
+    journalctl --user -u sba-txt -u sba-md
     sleep 1
 done
-journalctl --user -u sba-md
-journalctl --user -u sba-txt
 
-journalctl --user -u sba-md | grep -q "processed '$HOME/Notes/langchain.md'"
+journalctl --user -u sba-txt -u sba-md
+
+# do another check to stop if it is not present
+journalctl --user -u sba-md | grep -q "processed '$TOP/Notes/langchain.md'"
 
 # test the vector store
 RES=$(poetry run ./similarity.py "What is langchain?")
@@ -87,20 +98,20 @@ sleep 2
 sudo journalctl --user -u sba-md --rotate
 sudo journalctl --user -u sba-md --vacuum-time=1s
 
-touch $HOME/Notes/langchain.md
+touch $TOP/Notes/langchain.md
 
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-md | grep "skipping $HOME/Notes/langchain.md / .* as content did not change"; then
+    if journalctl --user -u sba-md | grep "skipping $TOP/Notes/langchain.md / .* as content did not change"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
 journalctl --user -u sba-md
-jq . $HOME/.second-brain/checksums.json
-journalctl --user -u sba-md | grep "skipping $HOME/Notes/langchain.md / .* as content did not change"
+jq . $TOP/.second-brain/checksums.json
+journalctl --user -u sba-md | grep "skipping $TOP/Notes/langchain.md / .* as content did not change"
 
 # wait a bit to be sure to have all the logs in different seconds
 # for the vacuum cleaning process to work
@@ -110,7 +121,7 @@ sleep 2
 sudo journalctl --user -u sba-md --rotate
 sudo journalctl --user -u sba-md --vacuum-time=1s
 
-cat >> $HOME/Notes/langchain.md <<EOF
+cat >> $TOP/Notes/langchain.md <<EOF
 ## Links
 
 - https://python.langchain.com/
@@ -119,7 +130,7 @@ EOF
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-md | grep -q "processed '$HOME/Notes/langchain.md'"; then
+    if journalctl --user -u sba-md | grep -q "processed '$TOP/Notes/langchain.md'"; then
         echo "*** Found finished marker"
         break
     fi
@@ -144,31 +155,31 @@ sudo journalctl --user -u sba-md --vacuum-time=1s
 sudo journalctl --user -u sba-txt --rotate
 sudo journalctl --user -u sba-txt --vacuum-time=1s
 
-rm "$HOME/Notes/langchain.md"
+rm "$TOP/Notes/langchain.md"
 
 TRY=0
 while [ $TRY -lt 5 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-md | grep -q "removing $HOME/Text/langchain.json as $HOME/Notes/langchain.md do not exist anymore"; then
+    if journalctl --user -u sba-md | grep -q "removing $TOP/Text/langchain.json as $TOP/Notes/langchain.md do not exist anymore"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
 journalctl --user -u sba-md
-journalctl --user -u sba-md | grep -q "removing $HOME/.second-brain/Text/langchain.json as $HOME/Notes/langchain.md do not exist anymore"
+journalctl --user -u sba-md | grep -q "removing $TOP/.second-brain/Text/langchain.json as $TOP/Notes/langchain.md do not exist anymore"
 
 TRY=0
 while [ $TRY -lt 5 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-txt | grep -q "Removing .* related files to $HOME/.second-brain/Text/langchain.json:"; then
+    if journalctl --user -u sba-txt | grep -q "Removing .* related files to $TOP/.second-brain/Text/langchain.json:"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
 journalctl --user -u sba-txt
-journalctl --user -u sba-txt | grep -q "Removing .* related files to $HOME/.second-brain/Text/langchain.json:"
+journalctl --user -u sba-txt | grep -q "Removing .* related files to $TOP/.second-brain/Text/langchain.json:"
 
 # be sure we don't have anymore document in the vector database
 poetry run ./similarity.py ""
