@@ -19,20 +19,20 @@ import sys
 import assemblyai as aai
 import yt_dlp
 from dotenv import load_dotenv
-from langchain.document_loaders.blob_loaders.youtube_audio import YoutubeAudioLoader
-from langchain.document_loaders.generic import GenericLoader
-from langchain.document_loaders.parsers import OpenAIWhisperParser
 from langchain_community.document_loaders import (
     AssemblyAIAudioTranscriptLoader,
     PyMuPDFLoader,
     UnstructuredURLLoader,
+    YoutubeAudioLoader,
 )
+from langchain_community.document_loaders.generic import GenericLoader
+from langchain_community.document_loaders.parsers.audio import OpenAIWhisperParser
 from youtube_transcript_api import YouTubeTranscriptApi, _errors
 
 from lib import ChecksumStore, DateTimeEncoder, is_history_filename, is_same_time
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
-HTTP_REGEX = re.compile(r"https://[^ ]+")
+HTTP_REGEX = re.compile(r"https://[^ ]+|file://[^ ]+|~/.+")
 IGNORED_REGEX = re.compile(r"^https://(docs.google.com|source.redhat.com)")
 
 
@@ -124,6 +124,8 @@ def process_url_line(basename, line, directory, last_accessed_at):
     res = HTTP_REGEX.search(line)
     if res:
         url = res.group(0)
+        if url.startswith("~/"):
+            url = "file://" + os.path.expanduser(url)
         print(f"found url {url}", file=sys.stderr)
         # skip private or local network urls
         if (
@@ -279,7 +281,9 @@ def remove_dash(content, level):
     lines = content.split("\n")
     dashes = "#" * level
     for idx, line in enumerate(lines):
-        if line.startswith(dashes):
+        # remove the dashes from the beginning of the line if this is
+        # a title #+ <title> to keep tags like #tag1
+        if line.startswith(dashes) and re.match(r"^#+ ", line):
             lines[idx] = line[level:].strip()
     return "\n".join(lines)
 
@@ -294,11 +298,6 @@ def get_date(date_str):
         except ValueError:
             print(f"Unable to parse date {date_str}", file=sys.stderr)
             return date_str
-
-
-def clean_referer(referer):
-    "remove numbers from the referer"
-    return re.sub(r"\d+", "", referer)
 
 
 DATE2_REGEXP = re.compile(r"^## (\d\d \w+ \d\d\d\d)", re.MULTILINE)
@@ -323,28 +322,43 @@ def split_md_file(fname, md_dir):
         files = [fname]
         level = 0
     if len(history) >= 3:
+        files = generate_history_files(md_dir, basename, history, level)
         base_fname = os.path.join(md_dir, basename + ".md")
         with open(base_fname, "w", encoding="UTF-8") as fptr:
             fptr.write(history[0])
         files.append(base_fname)
         stat = os.stat(fname)
         os.utime(base_fname, (stat.st_atime, stat.st_mtime))
-        for idx in range(1, len(history), 2):
-            history_date = get_date(history[idx])
-            if isinstance(history_date, str):
-                continue
-            if level == 1:
-                date = history_date.strftime("%d")
-            else:
-                date = history_date.strftime("%Y%m%d")
-            part_fname = os.path.join(md_dir, basename + date + ".md")
-            with open(part_fname, "w", encoding="UTF-8") as fptr:
-                fptr.write(f"---\nReferer: {clean_referer(basename)}\n---\n\n")
-                fptr.write("# " + history[idx] + remove_dash(history[idx + 1], level))
-            mtime = (history_date + datetime.timedelta(hours=12)).timestamp()
-            os.utime(part_fname, (mtime, mtime))
-            files.append(part_fname)
+
     print(f"found {len(files)} history files", file=sys.stderr)
+    return files
+
+
+def generate_history_files(md_dir, basename, history, level):
+    "Generate history MarkDown files from a list of history entries"
+    files = []
+    # extract header metadata from base file
+    metadata, _ = get_metadata(history[0])
+    metadata["referer"] = basename
+    for idx in range(1, len(history), 2):
+        history_date = get_date(history[idx])
+        if isinstance(history_date, str):
+            continue
+        if level == 1:
+            date = history_date.strftime("%d")
+        else:
+            date = history_date.strftime("%Y%m%d")
+        part_fname = os.path.join(md_dir, basename + date + ".md")
+        with open(part_fname, "w", encoding="UTF-8") as fptr:
+            # write the metadata between --- and ---
+            fptr.write("---\n")
+            for key, value in metadata.items():
+                fptr.write(f"{key}: {value}\n")
+            fptr.write("---\n\n")
+            fptr.write("# " + history[idx] + remove_dash(history[idx + 1], level))
+        mtime = (history_date + datetime.timedelta(hours=12)).timestamp()
+        os.utime(part_fname, (mtime, mtime))
+        files.append(part_fname)
     return files
 
 
