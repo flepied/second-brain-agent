@@ -32,7 +32,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, _errors
 from lib import ChecksumStore, DateTimeEncoder, is_history_filename, is_same_time
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
-HTTP_REGEX = re.compile(r"https://[^ ]+|file://[^ ]+|~/.+")
+HTTP_REGEX = re.compile(r"https://[^ ]+|file://[^ ]+|~?/.+")
 IGNORED_REGEX = re.compile(r"^https://(docs.google.com|source.redhat.com)")
 
 
@@ -124,7 +124,7 @@ def process_url_line(basename, line, directory, last_accessed_at):
     res = HTTP_REGEX.search(line)
     if res:
         url = res.group(0)
-        if url.startswith("~/"):
+        if url.startswith("~") or url.startswith("/"):
             url = "file://" + os.path.expanduser(url)
         print(f"found url {url}", file=sys.stderr)
         # skip private or local network urls
@@ -148,7 +148,10 @@ def process_url_line(basename, line, directory, last_accessed_at):
                 return True
             try:
                 file_type = "pdf"
-                loader = PyMuPDFLoader(url)
+                if url.startswith("file://"):
+                    loader = PyMuPDFLoader(url[7:])
+                else:
+                    loader = PyMuPDFLoader(url)
                 output = loader.load()
                 # save pdf to the Orig directory
                 shutil.copyfile(
@@ -171,7 +174,7 @@ def process_url_line(basename, line, directory, last_accessed_at):
         if output:
             save_content(
                 output_path,
-                output[0].page_content,
+                "\n".join([x.page_content for x in output]),
                 url=url,
                 referer=basename,
                 type=file_type,
@@ -183,7 +186,7 @@ def process_url_line(basename, line, directory, last_accessed_at):
     return False
 
 
-MP3_REGEX = re.compile(r"(https://.*\.mp3)")
+MP3_REGEX = re.compile(r"(https://.*\.mp3|~?/.*\.mp3)")
 
 
 def process_mp3_line(basename, line, directory, last_accessed_at):
@@ -209,14 +212,20 @@ def process_mp3_line(basename, line, directory, last_accessed_at):
             auto_chapters=True,
             entity_detection=True,
         )
-
-        output = AssemblyAIAudioTranscriptLoader(
-            file_path=url, config=config, api_key=aai_api_key
-        ).load()
+        if url.startswith("~"):
+            url = os.path.expanduser(url)
+        try:
+            output = AssemblyAIAudioTranscriptLoader(
+                file_path=url, config=config, api_key=aai_api_key
+            ).load()
+        # pylint: disable=broad-exception-caught
+        except Exception as excp:
+            print(f"ERROR: Unable to trascript {url}: {excp}", file=sys.stderr)
+            return True
         if output:
             save_content(
                 output_path,
-                output[0].page_content,
+                "\n".join([x.page_content for x in output]),
                 url=url,
                 referer=basename,
                 type="audio",
