@@ -309,6 +309,19 @@ def get_date(date_str):
             return date_str
 
 
+def extract_domain(basename):
+    """Extract the domain from the basename.
+
+    Done by removing numbers and these strings: At, Journal, Project and History"""
+    return (
+        re.sub(r"\d+", "", basename)
+        .replace("At", "")
+        .replace("Journal", "")
+        .replace("History", "")
+        .replace("Project", "")
+    )
+
+
 DATE2_REGEXP = re.compile(r"^## (\d\d \w+ \d\d\d\d)", re.MULTILINE)
 DATE3_REGEXP = re.compile(r"^### (\d\d \w+ \d\d\d\d)", re.MULTILINE)
 
@@ -349,6 +362,8 @@ def generate_history_files(md_dir, basename, history, level):
     # extract header metadata from base file
     metadata, _ = get_metadata(history[0])
     metadata["referer"] = basename
+    metadata["domain"] = extract_domain(basename)
+    metadata["type"] = "history"
     for idx in range(1, len(history), 2):
         history_date = get_date(history[idx])
         if isinstance(history_date, str):
