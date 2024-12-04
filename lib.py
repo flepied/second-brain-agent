@@ -157,7 +157,7 @@ class Agent:
         return response["answer"]
 
     def _filter_file(self, sources):
-        "filter our file:// at the beginning of the strings"
+        "filter out file:// at the beginning of the strings"
         return [src[7:] if src.startswith("file://") else src for src in sources]
 
     def _get_response(self, user_question):
@@ -224,9 +224,17 @@ class Agent:
         res = self.chain({"question": user_question})
         return res
 
+    def _get_source(self, source):
+        "Get the url instead of the chunk source"
+        try:
+            return self.vectorstore.get(where={"source": source})["metadatas"][0]["url"]
+        except IndexError:
+            return source
+
     def _get_sources(self, resp):
         "Get the url instead of the chunk sources"
-        return resp["sources"].split(", ")
+        sources = [self._get_source(source) for source in resp["sources"].split(", ")]
+        return set(sources)
 
     def _build_filter(self, metadata):
         "Build the filter for the vector store from the metadata"

@@ -11,7 +11,7 @@ from langchain.prompts import (
     FewShotChatMessagePromptTemplate,
     PromptTemplate,
 )
-from langchain_community.llms import OpenAI
+from langchain_openai import OpenAI
 from pydantic import BaseModel
 
 _DEBUG = True
@@ -54,9 +54,9 @@ def extract_period(
         print(f"Input: {_input.to_string()}", file=sys.stderr)
     if model is None:
         model = OpenAI(temperature=0)
-    output = model(_input.to_string())
+    output = model.invoke(_input.to_string())
     if _DEBUG:
-        print(f"Output: {output}", file=sys.stderr)
+        print(f"Period output: {output}", file=sys.stderr)
     try:
         return _PERIOD_PARSER.parse(output)
     except:
@@ -92,9 +92,9 @@ def extract_intent(query: str, model: BaseLLM = None) -> Optional[Intent]:
         print(f"Input: {_input.to_string()}", file=sys.stderr)
     if model is None:
         model = OpenAI(temperature=0)
-    output = model(_input.to_string())
+    output = model.invoke(_input.to_string())
     if _DEBUG:
-        print(f"Output: {output}", file=sys.stderr)
+        print(f"Intent output: {output}", file=sys.stderr)
     try:
         return _INTENT_PARSER.parse(output)
     except:
@@ -132,9 +132,9 @@ def extract_documents(
         print(f"Input: {_input.to_string()}", file=sys.stderr)
     if model is None:
         model = OpenAI(temperature=0)
-    output = model(_input.to_string())
+    output = model.invoke(_input.to_string())
     if _DEBUG:
-        print(f"Output: {output}", file=sys.stderr)
+        print(f"Output documents: {output}", file=sys.stderr)
     try:
         return _DOC_PARSER.parse(output)
     except Exception as excp:
@@ -173,9 +173,9 @@ def extract_sentence_no_time(query: str, model: BaseLLM = None) -> Optional[Sent
         print(f"Input: {_input.to_string()}", file=sys.stderr)
     if model is None:
         model = OpenAI(temperature=0)
-    output = model(_input.to_string())
+    output = model.invoke(_input.to_string())
     if _DEBUG:
-        print(f"Output: {output}", file=sys.stderr)
+        print(f"Output without time: {output}", file=sys.stderr)
     try:
         return _SENTENCE_PARSER.parse(output)
     except:
@@ -234,9 +234,9 @@ def extract_step_back(query: str, model: BaseLLM = None) -> Optional[Sentence]:
         print(f"Input: {_input}", file=sys.stderr)
     if model is None:
         model = OpenAI(temperature=0)
-    output = model(_input)
+    output = model.invoke(_input)
     if _DEBUG:
-        print(f"Output: {output}", file=sys.stderr)
+        print(f"Step back output: {output}", file=sys.stderr)
     try:
         return output.split("AI: ")[1].strip()
     except:
