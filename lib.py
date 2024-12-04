@@ -197,7 +197,7 @@ class Agent:
         # we can have multiple documents so add them with a logical OR
         or_clause = []
         for doc in res_doc.document_names:
-            or_clause.append({"referer": {"$eq": doc}})
+            or_clause.append({"domain": {"$eq": doc}})
         if len(or_clause) > 1:
             or_clause = {"$or": or_clause}
         elif len(or_clause) == 1:
