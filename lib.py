@@ -211,8 +211,12 @@ class Agent:
             where_clause = and_clause[0]
 
         print(f"{subject=} {where_clause=}", file=sys.stderr)
-        self.chain.search_kwargs = {"filter": where_clause}
-        res = self.chain({"question": subject})
+        search_kwargs = {"filter": where_clause}
+        self.chain = RetrievalQAWithSourcesChain.from_llm(
+            llm=self.llm,
+            retriever=self.vectorstore.as_retriever(search_kwargs=search_kwargs),
+        )
+        res = self.chain.invoke({"question": subject}, where=where_clause)
         print(f"{res=}", file=sys.stderr)
         return res
 
@@ -221,7 +225,7 @@ class Agent:
         res_step_back = extract_step_back(user_question)
         if res_step_back is not None:
             print(f"Step back {res_step_back}", file=sys.stderr)
-        res = self.chain({"question": user_question})
+        res = self.chain.invoke({"question": user_question})
         return res
 
     def _get_source(self, source):
