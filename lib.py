@@ -157,7 +157,7 @@ class Agent:
         return response["answer"]
 
     def _filter_file(self, sources):
-        "filter our file:// at the beginning of the strings"
+        "filter out file:// at the beginning of the strings"
         return [src[7:] if src.startswith("file://") else src for src in sources]
 
     def _get_response(self, user_question):
@@ -197,7 +197,7 @@ class Agent:
         # we can have multiple documents so add them with a logical OR
         or_clause = []
         for doc in res_doc.document_names:
-            or_clause.append({"referer": {"$eq": doc}})
+            or_clause.append({"domain": {"$eq": doc}})
         if len(or_clause) > 1:
             or_clause = {"$or": or_clause}
         elif len(or_clause) == 1:
@@ -211,8 +211,12 @@ class Agent:
             where_clause = and_clause[0]
 
         print(f"{subject=} {where_clause=}", file=sys.stderr)
-        self.chain.search_kwargs = {"filter": where_clause}
-        res = self.chain({"question": subject})
+        search_kwargs = {"filter": where_clause}
+        self.chain = RetrievalQAWithSourcesChain.from_llm(
+            llm=self.llm,
+            retriever=self.vectorstore.as_retriever(search_kwargs=search_kwargs),
+        )
+        res = self.chain.invoke({"question": subject}, where=where_clause)
         print(f"{res=}", file=sys.stderr)
         return res
 
@@ -221,12 +225,20 @@ class Agent:
         res_step_back = extract_step_back(user_question)
         if res_step_back is not None:
             print(f"Step back {res_step_back}", file=sys.stderr)
-        res = self.chain({"question": user_question})
+        res = self.chain.invoke({"question": user_question})
         return res
+
+    def _get_source(self, source):
+        "Get the url instead of the chunk source"
+        try:
+            return self.vectorstore.get(where={"source": source})["metadatas"][0]["url"]
+        except IndexError:
+            return source
 
     def _get_sources(self, resp):
         "Get the url instead of the chunk sources"
-        return resp["sources"].split(", ")
+        sources = [self._get_source(source) for source in resp["sources"].split(", ")]
+        return set(sources)
 
     def _build_filter(self, metadata):
         "Build the filter for the vector store from the metadata"

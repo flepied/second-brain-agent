@@ -309,6 +309,19 @@ def get_date(date_str):
             return date_str
 
 
+def extract_domain(basename):
+    """Extract the domain from the basename.
+
+    Done by removing numbers and these strings: At, Journal, Project and History"""
+    return (
+        re.sub(r"\d+", "", basename)
+        .replace("At", "")
+        .replace("Journal", "")
+        .replace("History", "")
+        .replace("Project", "")
+    )
+
+
 DATE2_REGEXP = re.compile(r"^## (\d\d \w+ \d\d\d\d)", re.MULTILINE)
 DATE3_REGEXP = re.compile(r"^### (\d\d \w+ \d\d\d\d)", re.MULTILINE)
 
@@ -349,6 +362,8 @@ def generate_history_files(md_dir, basename, history, level):
     # extract header metadata from base file
     metadata, _ = get_metadata(history[0])
     metadata["referer"] = basename
+    metadata["domain"] = extract_domain(basename)
+    metadata["type"] = "history"
     for idx in range(1, len(history), 2):
         history_date = get_date(history[idx])
         if isinstance(history_date, str):
@@ -379,16 +394,15 @@ def write_output_file(md_file, out_dir, metadata):
     last_accessed_at = datetime.datetime.fromtimestamp(md_stat.st_mtime)
     basename = os.path.basename(md_file[:-3])
     if metadata is None:
-        # add metadata and remove header from content from the first file
         metadata, content = get_metadata(output)
-        metadata["type"] = "notes"
     else:
         new_metadata, content = get_metadata(output)
         metadata.update(new_metadata)
-        metadata["type"] = "history"
     metadata["last_accessed_at"] = last_accessed_at
     if "url" not in metadata:
         metadata["url"] = f"file://{md_file}"
+    if "type" not in metadata:
+        metadata["type"] = "notes"
     print(f"saving {md_file=} with {metadata=}", file=sys.stderr)
     omdname = get_output_file_path(out_dir, basename)
     saved = save_content(
@@ -439,10 +453,8 @@ def process_md_file(fname, out_dir, checksum_store):
         return False
     if checksum_store.has_file_changed(fname) is not False or not os.path.exists(oname):
         md_files = split_md_file(fname, os.path.join(out_dir, "Markdown"))
-        metadata = None
-        # extract the metadata and content from the first file and pass it to the others
         for md_file in md_files:
-            metadata = write_output_file(md_file, out_dir, metadata)
+            write_output_file(md_file, out_dir, None)
     else:
         print(f"skipping {fname} / {oname} as content did not change", file=sys.stderr)
         return False

@@ -33,6 +33,9 @@ fi
 
 echo "Finished processing $SRC ($TRANSFORM)"
 
-inotifywait -m -e CLOSE_WRITE,DELETE "$SRC"|while read dir event fname; do echo "${dir}${fname} $event" 1>&2; echo "${dir}${fname}"; done | "$TRANSFORM" "-" "$DST"
+inotifywait -m -e CLOSE_WRITE,DELETE "$SRC"|while read dir event fname; do
+  echo "${dir}${fname} $event" 1>&2
+  echo "${dir}${fname}"
+done | "$TRANSFORM" "-" "$DST"
 
 # monitor.sh ends here

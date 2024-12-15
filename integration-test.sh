@@ -9,15 +9,17 @@ else
 fi
 
 TOP=$(mktemp -d -p $HOME)
+SRCDIR=$TOP/Notes
+DSTDIR=$TOP/.second-brain
 
-mkdir $TOP/.second-brain $TOP/Notes
+mkdir -p $SRCDIR $DSTDIR
 
 # avoid losing my local env if testing locally :-)
 test ! -f .env
 
 cat > .env <<EOF
-SRCDIR=$TOP/Notes
-DSTDIR=$TOP/.second-brain
+SRCDIR=$SRCDIR
+DSTDIR=$DSTDIR
 EOF
 
 bash -x ./install-systemd-services.sh
@@ -50,7 +52,7 @@ docker-compose logs
 docker-compose logs | grep -q "Application startup complete"
 
 # create the document
-cat > $TOP/Notes/langchain.md <<EOF
+cat > $SRCDIR/langchain.md <<EOF
 ## References
 
 - https://docs.langchain.com/docs/
@@ -61,22 +63,34 @@ Chain-of-Thought Reasoning by Large Language Models
 https://arxiv.org/pdf/2305.04091.pdf
 EOF
 
-# wait for the document to be processed
+# wait for the document to be processed in sba-md
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-txt | grep -q "Storing .* chunks to the db for metadata={'type': 'notes', 'url': 'file://$TOP/Notes/langchain.md'}'"; then
+    if journalctl --user -u sba-md | grep -q "processed '$SRCDIR/langchain.md'"; then
         echo "*** Found finished marker"
         break
     fi
-    journalctl --user -u sba-txt -u sba-md
+    journalctl --user -u sba-md
+    sleep 1
+done
+journalctl --user -u sba-md
+journalctl --user -u sba-md | grep "processed '$SRCDIR/langchain.md'"
+
+# wait for the document to be processed in sba-txt
+TRY=0
+while [ $TRY -lt 30 ]; do
+    TRY=$(( TRY + 1 ))
+    if journalctl --user -u sba-txt | grep "Storing .* chunks to the db for metadata=.*'url': 'file://$SRCDIR/langchain.md'"|grep -q "'type': 'notes'"; then
+        echo "*** Found finished marker"
+        break
+    fi
+    journalctl --user -u sba-txt
     sleep 1
 done
 
-journalctl --user -u sba-txt -u sba-md
-
-# do another check to stop if it is not present
-journalctl --user -u sba-md | grep -q "processed '$TOP/Notes/langchain.md'"
+journalctl --user -u sba-txt
+journalctl --user -u sba-txt | grep "Storing .* chunks to the db for metadata=.*'url': 'file://$SRCDIR/langchain.md'"|grep "'type': 'notes'"
 
 # test the vector store
 RES=$(poetry run ./similarity.py "What is langchain?")
@@ -98,12 +112,12 @@ sleep 2
 sudo journalctl --user -u sba-md --rotate
 sudo journalctl --user -u sba-md --vacuum-time=1s
 
-touch $TOP/Notes/langchain.md
+touch $SRCDIR/langchain.md
 
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-md | grep "skipping $TOP/Notes/langchain.md / .* as content did not change"; then
+    if journalctl --user -u sba-md | grep "skipping $SRCDIR/langchain.md / .* as content did not change"; then
         echo "*** Found finished marker"
         break
     fi
@@ -111,7 +125,7 @@ while [ $TRY -lt 30 ]; do
 done
 journalctl --user -u sba-md
 jq . $TOP/.second-brain/checksums.json
-journalctl --user -u sba-md | grep "skipping $TOP/Notes/langchain.md / .* as content did not change"
+journalctl --user -u sba-md | grep "skipping $SRCDIR/langchain.md / .* as content did not change"
 
 # wait a bit to be sure to have all the logs in different seconds
 # for the vacuum cleaning process to work
@@ -121,7 +135,7 @@ sleep 2
 sudo journalctl --user -u sba-md --rotate
 sudo journalctl --user -u sba-md --vacuum-time=1s
 
-cat >> $TOP/Notes/langchain.md <<EOF
+cat >> $SRCDIR/langchain.md <<EOF
 ## Links
 
 - https://python.langchain.com/
@@ -130,7 +144,7 @@ EOF
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-md | grep -q "processed '$TOP/Notes/langchain.md'"; then
+    if journalctl --user -u sba-md | grep -q "processed '$SRCDIR/langchain.md'"; then
         echo "*** Found finished marker"
         break
     fi
@@ -155,19 +169,19 @@ sudo journalctl --user -u sba-md --vacuum-time=1s
 sudo journalctl --user -u sba-txt --rotate
 sudo journalctl --user -u sba-txt --vacuum-time=1s
 
-rm "$TOP/Notes/langchain.md"
+rm "$SRCDIR/langchain.md"
 
 TRY=0
 while [ $TRY -lt 5 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-md | grep -q "removing $TOP/Text/langchain.json as $TOP/Notes/langchain.md do not exist anymore"; then
+    if journalctl --user -u sba-md | grep -q "removing $TOP/Text/langchain.json as $SRCDIR/langchain.md do not exist anymore"; then
         echo "*** Found finished marker"
         break
     fi
     sleep 1
 done
 journalctl --user -u sba-md
-journalctl --user -u sba-md | grep -q "removing $TOP/.second-brain/Text/langchain.json as $TOP/Notes/langchain.md do not exist anymore"
+journalctl --user -u sba-md | grep -q "removing $TOP/.second-brain/Text/langchain.json as $SRCDIR/langchain.md do not exist anymore"
 
 TRY=0
 while [ $TRY -lt 5 ]; do
