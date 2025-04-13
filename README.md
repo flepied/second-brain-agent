@@ -65,6 +65,12 @@ flowchart TD
     GB --> I
 ```
 
+To be able to manipulate dates for activity reports. The system relies on some naming conventions. The first one is filenames containing `History`, `Journal` or `StatusReport` are considered journals with entries in this format: `## 02 Dec 2024` for each date. Other files can have an `## History` section with entries in this format: `### 02 Dec 2024` for each date.
+
+To classify documents, the second brain agent uses a concept of a domain per document. The domain metadata is computed for each document by removing numbers and these strings: `At`, `Journal`, `Project`, `Notes` and `History`. This is handy if you use a documents named like `WorkoutHistory202412.md` then the domain is `Workout`.
+
+To know which domain to use to filter documents, the second brain agent uses a special document that can be described in the `.env` files in the `SBA_ORG_DOC` variable and is defaulting to `SecondBrainOrganization.md`. This document describes the mapping between domains and other concepts if you want for example to separate work and personal activities.
+
 ## Installation
 
 You need a Python 3 interpreter, [`poetry`](https://github.com/python-poetry/install.python-poetry.org) and the `inotify-tools` installed. All this has been tested under Fedora Linux 38 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.

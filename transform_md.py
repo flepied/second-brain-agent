@@ -312,13 +312,15 @@ def get_date(date_str):
 def extract_domain(basename):
     """Extract the domain from the basename.
 
-    Done by removing numbers and these strings: At, Journal, Project and History"""
+    Done by removing numbers and these strings: At, Journal, Project, Notes and History
+    """
     return (
         re.sub(r"\d+", "", basename)
         .replace("At", "")
         .replace("Journal", "")
         .replace("History", "")
         .replace("Project", "")
+        .replace("Notes", "")
     )
 
 

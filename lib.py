@@ -122,11 +122,21 @@ class Agent:
             llm=self.llm,
             retriever=self.vectorstore.as_retriever(),
         )
+
+    def get_documents_desc(self):
+        "Get the document describing the domains from the organization file"
         try:
-            with open("documents-desc.txt", "r", encoding="UTF-8") as desc_file:
-                self.documents_desc = desc_file.read()
+            with open(
+                os.path.join(
+                    os.environ.get("SRCDIR"),
+                    os.environ.get("SBA_ORG_DOC", "SecondBrainOrganization.md"),
+                ),
+                "r",
+                encoding="UTF-8",
+            ) as desc_file:
+                return desc_file.read()
         except FileNotFoundError:
-            self.documents_desc = ""
+            return ""
 
     def question(self, user_question):
         "Ask a question and format the answer for text"
@@ -192,7 +202,9 @@ class Agent:
         else:
             print(f"No period in the sentence: {user_question}", file=sys.stderr)
 
-        res_doc = extract_documents(user_question, self.documents_desc, model=self.llm)
+        res_doc = extract_documents(
+            user_question, self.get_documents_desc(), model=self.llm
+        )
 
         # we can have multiple documents so add them with a logical OR
         or_clause = []
