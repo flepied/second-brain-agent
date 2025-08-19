@@ -71,9 +71,69 @@ To classify documents, the second brain agent uses a concept of a domain per doc
 
 To know which domain to use to filter documents, the second brain agent uses a special document that can be described in the `.env` files in the `SBA_ORG_DOC` variable and is defaulting to `SecondBrainOrganization.md`. This document describes the mapping between domains and other concepts if you want for example to separate work and personal activities.
 
+## MCP Server
+
+The Second Brain Agent now includes an MCP (Model Context Protocol) server that provides programmatic access to the vector database and document retrieval system. This allows other applications to integrate with your second brain without interfacing at the reasoning level.
+
+### MCP Server Features
+
+* **Query Vector Database**: Ask questions and get answers from your indexed content
+* **Search Documents**: Perform semantic search across your documents with metadata filtering
+* **Document Management**: Get document counts, metadata, and list available domains
+* **Domain-based Search**: Search within specific domains (work, personal, etc.)
+* **Recent Documents**: Retrieve recently accessed documents
+
+### Using the MCP Server
+
+1. **Install the MCP server**:
+
+   ```bash
+   poetry add fastmcp
+   ```
+
+2. **Run the MCP server**:
+
+   ```bash
+   poetry run python mcp_server.py
+   ```
+
+3. **Test the server**:
+
+   ```bash
+   poetry run python test_mcp_server.py
+   ```
+
+4. **Configure MCP clients** using the `mcp_config.json` file:
+
+   ```json
+   {
+     "mcpServers": {
+       "second-brain-agent": {
+         "command": "python",
+         "args": ["mcp_server.py"],
+         "env": {
+           "SRCDIR": "${SRCDIR}",
+           "DSTDIR": "${DSTDIR}",
+           "SBA_ORG_DOC": "${SBA_ORG_DOC:-SecondBrainOrganization.md}"
+         }
+       }
+     }
+   }
+   ```
+
+### Available MCP Tools
+
+* `query_vector_database`: Query the vector database with questions
+* `search_documents`: Search for documents using semantic similarity
+* `get_document_count`: Get the total number of documents
+* `list_domains`: List all available domains
+* `search_by_domain`: Search within a specific domain
+* `get_recent_documents`: Get recently accessed documents
+* `get_document_metadata`: Get metadata for a specific document
+
 ## Installation
 
-You need a Python 3 interpreter, [`poetry`](https://github.com/python-poetry/install.python-poetry.org) and the `inotify-tools` installed. All this has been tested under Fedora Linux 38 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.
+You need a Python 3 interpreter, [`poetry`](https://github.com/python-poetry/install.python-poetry.org) and the `inotify-tools` installed. All this has been tested under Fedora Linux 42 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.
 
 Get the source code:
 
