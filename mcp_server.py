@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 """
-MCP Server for Second Brain Agent
-
-This server provides tools to interact with the vector database and document retrieval
-system without interfacing at the reasoning level.
+MCP Server using official MCP FastMCP implementation
 """
 
+import os
+import sys
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Dict, Optional
 
 from dotenv import load_dotenv
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 
 from lib import Agent, get_vectorstore
 
 # Load environment variables
 load_dotenv()
 
-# Initialize the server
+# Initialize the server using official MCP FastMCP
 server = FastMCP("second-brain-agent")
 
 
@@ -82,8 +81,8 @@ async def search_documents(
         if filter_metadata:
             search_kwargs["filter"] = filter_metadata
 
-        # Perform similarity search
-        results = vectorstore.similarity_search_with_relevance_scores(
+        # Perform similarity search (using async method)
+        results = await vectorstore.asimilarity_search_with_relevance_scores(
             query, **search_kwargs
         )
 
@@ -122,8 +121,8 @@ async def get_document_count() -> Dict[str, Any]:
     """
     try:
         vectorstore = get_vectorstore()
-        # Get all documents to count them
-        all_docs = vectorstore.get()
+        # Get all documents to count them (using async method)
+        all_docs = await vectorstore.aget_by_ids([])
         count = len(all_docs["documents"])
 
         return {"document_count": count, "timestamp": datetime.now().isoformat()}
@@ -146,8 +145,8 @@ async def get_document_metadata(
     try:
         vectorstore = get_vectorstore()
 
-        # Get document by ID
-        result = vectorstore.get(ids=[document_id])
+        # Get document by ID (using async method)
+        result = await vectorstore.aget_by_ids([document_id])
 
         if not result["documents"]:
             return {
@@ -181,8 +180,8 @@ async def list_domains() -> Dict[str, Any]:
     try:
         vectorstore = get_vectorstore()
 
-        # Get all documents to extract unique domains
-        all_docs = vectorstore.get()
+        # Get all documents to extract unique domains (using async method)
+        all_docs = await vectorstore.aget_by_ids([])
         domains = set()
 
         for metadata in all_docs["metadatas"]:
@@ -219,9 +218,11 @@ async def search_by_domain(
         vectorstore = get_vectorstore()
 
         if query:
-            # Search with query in specific domain
-            results = vectorstore.similarity_search_with_relevance_scores(
-                query, k=limit, filter={"domain": domain}
+            # Search with query in specific domain (using async method)
+            results = await vectorstore.asimilarity_search_with_relevance_scores(
+                query,
+                k=limit,
+                filter={"domain": domain},
             )
 
             # Format results for similarity search
@@ -235,19 +236,24 @@ async def search_by_domain(
                     }
                 )
         else:
-            # Get all documents in domain
-            all_docs = vectorstore.get(where={"domain": domain})
+            # Get all documents in domain (using async method with filter)
+            all_docs = await vectorstore.aget_by_ids([])
 
-            # Format results for direct retrieval
-            documents = []
-            for i, doc in enumerate(all_docs["documents"][:limit]):
-                documents.append(
-                    {
-                        "content": doc,
-                        "metadata": all_docs["metadatas"][i],
-                        "similarity_score": 1.0,  # No relevance score for direct retrieval
-                    }
-                )
+            # Filter documents by domain
+            domain_docs = []
+            for i, metadata in enumerate(all_docs["metadatas"]):
+                if metadata.get("domain") == domain:
+                    domain_docs.append(
+                        {
+                            "content": all_docs["documents"][i],
+                            "metadata": metadata,
+                            "similarity_score": 1.0,  # No relevance score for direct retrieval
+                        }
+                    )
+                    if len(domain_docs) >= limit:
+                        break
+
+            documents = domain_docs
 
         return {
             "domain": domain,
@@ -285,8 +291,8 @@ async def get_recent_documents(
         cutoff_time = datetime.now() - timedelta(days=days)
         cutoff_timestamp = cutoff_time.timestamp()
 
-        # Get recent documents
-        all_docs = vectorstore.get()
+        # Get recent documents (using async method)
+        all_docs = await vectorstore.aget_by_ids([])
         recent_docs = []
 
         for i, metadata in enumerate(all_docs["metadatas"]):
@@ -323,5 +329,14 @@ async def get_recent_documents(
 
 
 if __name__ == "__main__":
+    # Add some debugging
+    print("Starting MCP server...", file=sys.stderr)
+    print(f"Current working directory: {os.getcwd()}", file=sys.stderr)
+    print(
+        f"Environment variables: SRCDIR={os.getenv('SRCDIR', 'NOT SET')}, "
+        f"DSTDIR={os.getenv('DSTDIR', 'NOT SET')}",
+        file=sys.stderr,
+    )
+
     # Run the server
     server.run()

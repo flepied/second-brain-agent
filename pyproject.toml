@@ -43,7 +43,7 @@ altair = "<5"
 protobuf = "~=3.19.0"
 click = "=8"
 assemblyai = "^0.17.0"
-fastmcp = "^0.1.0"
+fastmcp = "^2.11.0"
 
 [tool.poetry.group.test]  # This part can be left out
 

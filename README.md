@@ -109,13 +109,7 @@ The Second Brain Agent now includes an MCP (Model Context Protocol) server that 
    {
      "mcpServers": {
        "second-brain-agent": {
-         "command": "python",
-         "args": ["mcp_server.py"],
-         "env": {
-           "SRCDIR": "${SRCDIR}",
-           "DSTDIR": "${DSTDIR}",
-           "SBA_ORG_DOC": "${SBA_ORG_DOC:-SecondBrainOrganization.md}"
-         }
+         "command": "/your/path/to/second-brain-agent/mcp-server.sh"
        }
      }
    }
