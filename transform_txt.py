@@ -29,8 +29,9 @@ def get_splitter():
     return splitter
 
 
-# pylint: disable=too-many-arguments
-def process_chunk(chunk, metadata, fname, basename, number, out_dir):
+def process_chunk(  # pylint: disable=R0913,R0917
+    chunk, metadata, fname, basename, number, out_dir
+):
     "Process a chunk of text"
     chunk_id = f"{basename}-{number:04d}.txt"
     oname = os.path.join(out_dir, "Chunk", chunk_id)

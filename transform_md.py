@@ -73,9 +73,8 @@ def process_youtube_line(basename, line, directory, last_accessed_at):
             print(f"transcript already exists for video {video_id}", file=sys.stderr)
             return True
         try:
-            transcript = YouTubeTranscriptApi.get_transcript(
-                video_id, languages=["en", "fr"]
-            )
+            ytt_api = YouTubeTranscriptApi()
+            transcript = ytt_api.fetch(video_id, languages=["en", "fr"])
             save_content(
                 transcript_path,
                 "\n".join([entry["text"] for entry in transcript]),

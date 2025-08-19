@@ -27,6 +27,10 @@ def parse_tool_result(result):
     return result
 
 
+import pytest
+
+
+@pytest.mark.asyncio
 async def test_mcp_server():
     """Test the MCP server functions using the proper client pattern"""
 

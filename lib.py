@@ -12,7 +12,7 @@ import time
 import chromadb
 from langchain.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
 # pylint: disable=no-name-in-module

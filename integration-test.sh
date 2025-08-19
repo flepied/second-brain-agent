@@ -26,30 +26,36 @@ bash -x ./install-systemd-services.sh
 
 sleep 5
 
+if type -p podman-compose; then
+    compose=podman-compose
+else
+    compose=docker-compose
+fi
+
 # wait for chromadb to be started
 TRY=0
 while [ $TRY -lt 30 ]; do
      TRY=$(( TRY + 1 ))
-    if docker-compose ps | grep -q " Up "; then
+    if $compose ps | grep -q " Up "; then
         echo "*** Found finished marker"
         break
      fi
     sleep 1
 done
-docker-compose ps
-docker-compose ps | grep -q " Up "
+$compose ps
+$compose ps | grep -q " Up "
 
 TRY=0
 while [ $TRY -lt 24 ]; do
      TRY=$(( TRY + 1 ))
-    if docker-compose logs | grep -q "Application startup complete"; then
+    if $compose logs | grep -q "Connect to Chroma at: "; then
         echo "*** Found finished marker"
         break
      fi
     sleep 5
 done
-docker-compose logs
-docker-compose logs | grep -q "Application startup complete"
+$compose logs
+$compose logs | grep -q "Connect to Chroma at: "
 
 # create the document
 cat > $SRCDIR/langchain.md <<EOF
@@ -91,6 +97,33 @@ done
 
 journalctl --user -u sba-txt
 journalctl --user -u sba-txt | grep "Storing .* chunks to the db for metadata=.*'url': 'file://$SRCDIR/langchain.md'"|grep "'type': 'notes'"
+
+# test the vector store
+RES=$(poetry run ./similarity.py "What is langchain?")
+echo "$RES"
+test -n "$RES"
+
+# test the vector store and llm
+RES=$(poetry run ./qa.py "What is langchain?")
+echo "$RES"
+if grep -q "I don't know." <<< "$RES"; then
+    exit 1
+fi
+
+# restart the container to be sure to have stored the information on disk
+$compose restart
+
+TRY=0
+while [ $TRY -lt 24 ]; do
+     TRY=$(( TRY + 1 ))
+    if $compose logs | grep -q "Connect to Chroma at: "; then
+        echo "*** Found finished marker"
+        break
+     fi
+    sleep 5
+done
+$compose logs
+$compose logs | grep -q "Connect to Chroma at: "
 
 # test the vector store
 RES=$(poetry run ./similarity.py "What is langchain?")
