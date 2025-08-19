@@ -275,16 +275,33 @@ class ChecksumStore:
         if os.path.exists(self.checksum_file):
             with open(self.checksum_file, encoding="utf-8") as in_f:
                 self.checksums = json.load(in_f)
+        modified = False
+        for key in list(self.checksums.keys()):
+            if not os.path.exists(key):
+                print(
+                    f"Removing checksum for {key} as the file does not exist",
+                    file=sys.stderr,
+                )
+                del self.checksums[key]
+                modified = True
+        if modified:
+            print("Saving modified checksums", file=sys.stderr)
+            self.save_checksums()
 
     def store_checksum(self, filename, checksum):
         "Store the checksum of a file"
         self.checksums[filename] = checksum
+        self.save_checksums()
+
+    def save_checksums(self):
+        "Save the checksums to the checksum file"
         with open(self.checksum_file, "w", encoding="utf-8") as out_f:
             json.dump(self.checksums, out_f)
 
     def has_file_changed(self, filename):
         "Check if a file has changed"
         checksum = self.compute_checksum(filename)
+        print(f"Computed checksum for {filename}: {checksum}", file=sys.stderr)
         if filename not in self.checksums:
             self.store_checksum(filename, checksum)
             return None
@@ -302,7 +319,7 @@ class ChecksumStore:
         with open(filename, "rb") as in_f:
             for chunk in iter(lambda: in_f.read(4096), b""):
                 hash_function.update(chunk)
-                return hash_function.hexdigest()
+        return hash_function.hexdigest()
 
 
 class DateTimeEncoder(json.JSONEncoder):

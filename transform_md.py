@@ -452,7 +452,7 @@ def process_md_file(fname, out_dir, checksum_store):
     if is_same_time(fname, oname):
         print(f"skipping {fname} as there is no time change", file=sys.stderr)
         return False
-    if checksum_store.has_file_changed(fname) is not False or not os.path.exists(oname):
+    if not os.path.exists(oname) or checksum_store.has_file_changed(fname) is not False:
         md_files = split_md_file(fname, os.path.join(out_dir, "Markdown"))
         for md_file in md_files:
             write_output_file(md_file, out_dir, None)
