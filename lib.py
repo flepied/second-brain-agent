@@ -1,5 +1,4 @@
-"""Misc functions used in other scripts
-"""
+"""Misc functions used in other scripts"""
 
 import datetime
 import hashlib
@@ -58,13 +57,9 @@ def get_vectorstore():
                 embedding_function=get_embeddings(),
                 client=client,
             )
-            print(
-                f"Number of documents in the vector store: {vectorstore._collection.count()}",  # pylint: disable=protected-access
-                file=sys.stderr,
-            )
             break
-        except Exception as excpt:  # pylint: disable=broad-except
-            print(excpt, file=sys.stderr)
+        except Exception as expt:  # pylint: disable=broad-except
+            print(expt, file=sys.stderr)
             print(
                 f"Could not connect to the vector store, retrying in 5 seconds ({tries})",
                 file=sys.stderr,

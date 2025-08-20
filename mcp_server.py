@@ -9,69 +9,71 @@ from datetime import datetime, timedelta
 from typing import Annotated, Any, Dict, Optional
 
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
-from lib import Agent, get_vectorstore
+from lib import get_vectorstore
 
 # Load environment variables
 load_dotenv()
 
+SRCDIR = os.getenv("SRCDIR", ".")
+DSTDIR = os.getenv("DSTDIR", ".")
+SBA_ORG_DOC = os.getenv("SBA_ORG_DOC", "SecondBrainOrganization.md")
+
 # Initialize the server using official MCP FastMCP
-server = FastMCP("second-brain-agent")
-
-
-@server.tool()
-async def query_vector_database(
-    query: Annotated[str, "The question to ask about your documents"],
-    include_sources: Annotated[
-        bool, "Whether to include source documents in the response"
-    ] = False,
-) -> Dict[str, Any]:
-    """
-    Query the vector database with a question and return the answer.
-
-    Returns:
-        Dictionary containing the answer and optionally sources
-    """
-    try:
-        # Use the Agent class which properly handles the LLM
-        agent = Agent()
-
-        result = agent.question(f"From the document, {query}")
-        response = {
-            "answer": result,
-            "query": query,
-            "timestamp": datetime.now().isoformat(),
-        }
-
-        if include_sources:
-            # Add sources information if requested
-            response["include_sources"] = True
-            # Note: The Agent.question method already includes sources in the result
-
-        return response
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        return {
-            "error": str(e),
-            "query": query,
-            "timestamp": datetime.now().isoformat(),
-        }
+server = FastMCP(
+    name="Second Brain",
+    instructions="""This server provides tools for interacting with personal notes and their associated documents and URLs.
+                 """,
+)
 
 
 @server.tool()
 async def search_documents(
-    query: Annotated[str, "The search query to find relevant documents"],
+    text: Annotated[
+        str,
+        "The text to find similar documents to. If the text is empty, the search is performed on the metadata only.",
+    ] = "",
     limit: Annotated[int, "Maximum number of results to return (default: 10)"] = 10,
     filter_metadata: Annotated[
         Optional[Dict[str, Any]],
-        "Optional metadata filters (e.g., {'type': 'history', 'domain': 'work'})",
+        """Optional metadata filters (e.g., {'type': 'history', 'domain': 'work'}).
+Complex filers can be used on metadata fields:
+
+        {"$and": [ { "type": { "$eq": "notes" } },
+                   { "created_at": { $gt: 1685469600.0 } }
+                 ]
+        }
+        """,
     ] = None,
 ) -> Dict[str, Any]:
     """
-    Search for documents in the vector database using semantic similarity.
+    Search for documents in the vector database using semantic similarity. The documents are split pieces if they contained an history and then each piece is split into chunks, and the search is performed on these chunks.
 
     Returns:
-        Dictionary containing search results with documents and metadata
+        Dictionary containing search results like: {"documents": [{"content": "...", "metadata": {...}, "similarity_score": 0.95}], "total_results": 5, "timestamp": "2023-10-01T12:00:00Z"}
+
+        Example metadata: {'created_at': 1685469900.0, 'source': '~/.second-brain/Chunk/DciNotes20240406-0001.txt', 'last_accessed_at': 1712397600.0, 'part': 1, 'referer': 'DciNotes', 'url': 'file:///home/flepied/Wiki/DciNotes', 'type': 'history', 'main_source': '~/.second-brain//Text/DciNotes20240406.json'}
+
+        similarity_score: float representing the similarity score of the document to the search text. Lower score represents more similarity.
+
+        total_results: Total number of documents found matching the search criteria.
+
+        Details of the metadata:
+        - `created_at`: Timestamp when the document was created.
+        - `source`: Path to the source chunk.
+        - `last_accessed_at`: Timestamp when the document was last accessed.
+        - `part`: Part number of the chunk.
+        - `referer`: The referer document basename.
+        - `url`: URL or file path to the document that was split into chunks.
+        - `main_source`: Main piece of the document if there was an history.
+        - `domain`: Domain of the document, e.g., 'work', 'personal', 'project'. the domains are described in the `SecondBrainOrganization.md` document.
+        - `type`: Type of the document:
+            - 'youtube' for YouTube videos transcripts
+            - 'pdf' for PDF documents
+            - 'audio' for audio files like podcast transcripts
+            - 'history' for historical notes for projects
+            - 'notes' for personal notes. That is the **main type** of document.
     """
     try:
         vectorstore = get_vectorstore()
@@ -83,7 +85,7 @@ async def search_documents(
 
         # Perform similarity search (using async method)
         results = await vectorstore.asimilarity_search_with_relevance_scores(
-            query, **search_kwargs
+            text, **search_kwargs
         )
 
         # Format results
@@ -98,7 +100,7 @@ async def search_documents(
             )
 
         return {
-            "query": query,
+            "results": results,
             "documents": documents,
             "total_results": len(documents),
             "timestamp": datetime.now().isoformat(),
@@ -106,95 +108,37 @@ async def search_documents(
     except Exception as e:  # pylint: disable=broad-exception-caught
         return {
             "error": str(e),
-            "query": query,
+            "query": text,
             "timestamp": datetime.now().isoformat(),
         }
 
 
 @server.tool()
-async def get_document_count() -> Dict[str, Any]:
+async def get_document_count(
+    filter_metadata: Annotated[
+        Optional[Dict[str, Any]],
+        """Optional metadata filters (e.g., {'type': 'history', 'domain': 'work'}).
+Complex filers can be used on metadata fields:
+
+        {"$and": [ { "type": { "$eq": "notes" } },
+                   { "created_at": { $gt: 1685469600.0 } }
+                 ]
+        }
+        """,
+    ] = None,
+) -> Dict[str, Any]:
     """
     Get the total number of documents in the vector database.
 
     Returns:
         Dictionary containing the document count
     """
-    try:
-        vectorstore = get_vectorstore()
-        # Get all documents to count them (using async method)
-        all_docs = await vectorstore.aget_by_ids([])
-        count = len(all_docs["documents"])
-
-        return {"document_count": count, "timestamp": datetime.now().isoformat()}
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        return {"error": str(e), "timestamp": datetime.now().isoformat()}
-
-
-@server.tool()
-async def get_document_metadata(
-    document_id: Annotated[
-        str, "The unique identifier of the document to retrieve metadata for"
-    ]
-) -> Dict[str, Any]:
-    """
-    Get metadata for a specific document by ID.
-
-    Returns:
-        Dictionary containing document metadata
-    """
-    try:
-        vectorstore = get_vectorstore()
-
-        # Get document by ID (using async method)
-        result = await vectorstore.aget_by_ids([document_id])
-
-        if not result["documents"]:
-            return {
-                "error": f"Document with ID {document_id} not found",
-                "document_id": document_id,
-                "timestamp": datetime.now().isoformat(),
-            }
-
-        return {
-            "document_id": document_id,
-            "metadata": result["metadatas"][0],
-            "content": result["documents"][0],
-            "timestamp": datetime.now().isoformat(),
-        }
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        return {
-            "error": str(e),
-            "document_id": document_id,
-            "timestamp": datetime.now().isoformat(),
-        }
-
-
-@server.tool()
-async def list_domains() -> Dict[str, Any]:
-    """
-    List all available domains in the vector database.
-
-    Returns:
-        Dictionary containing list of domains
-    """
-    try:
-        vectorstore = get_vectorstore()
-
-        # Get all documents to extract unique domains (using async method)
-        all_docs = await vectorstore.aget_by_ids([])
-        domains = set()
-
-        for metadata in all_docs["metadatas"]:
-            if "domain" in metadata:
-                domains.add(metadata["domain"])
-
-        return {
-            "domains": sorted(list(domains)),
-            "total_domains": len(domains),
-            "timestamp": datetime.now().isoformat(),
-        }
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        return {"error": str(e), "timestamp": datetime.now().isoformat()}
+    vectorstore = get_vectorstore()
+    res = vectorstore.get(where=filter_metadata, include=[])["ids"]
+    return {
+        "document_count": (len(res)),
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 @server.tool()
