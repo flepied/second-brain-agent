@@ -117,13 +117,10 @@ The Second Brain Agent now includes an MCP (Model Context Protocol) server that 
 
 ### Available MCP Tools
 
-* `query_vector_database`: Query the vector database with questions
 * `search_documents`: Search for documents using semantic similarity
 * `get_document_count`: Get the total number of documents
-* `list_domains`: List all available domains
-* `search_by_domain`: Search within a specific domain
+* `get_domains`: List all available domains
 * `get_recent_documents`: Get recently accessed documents
-* `get_document_metadata`: Get metadata for a specific document
 
 ## Installation
 
@@ -182,7 +179,7 @@ $ ./similarity.py "What is LangChain?" type=notes
 
 ### Searching for new connections between notes
 
-Use the vector store to find new conncetions between notes:
+Use the vector store to find new connections between notes:
 
 ```ShellSession
 $ ./smart_connections.py

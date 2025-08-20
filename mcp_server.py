@@ -3,6 +3,7 @@
 MCP Server using official MCP FastMCP implementation
 """
 
+import asyncio
 import os
 import sys
 from datetime import datetime, timedelta
@@ -142,75 +143,31 @@ Complex filers can be used on metadata fields:
 
 
 @server.tool()
-async def search_by_domain(
-    domain: Annotated[
-        str,
-        "The domain to search in (e.g., 'work', 'personal', 'ArtificialIntelligence')",
-    ],
-    query: Annotated[
-        str, "Optional search query (if empty, returns all documents in domain)"
-    ] = "",
-    limit: Annotated[int, "Maximum number of results to return (default: 10)"] = 10,
-) -> Dict[str, Any]:
+async def get_domains() -> Dict[str, Any]:
     """
-    Search for documents within a specific domain.
+    Retrieve all the domains used in the documents
 
     Returns:
-        Dictionary containing search results for the domain
+        a dictionary like: {"domains": ["Work", "Home", "Pkm"]}
     """
     try:
         vectorstore = get_vectorstore()
 
-        if query:
-            # Search with query in specific domain (using async method)
-            results = await vectorstore.asimilarity_search_with_relevance_scores(
-                query,
-                k=limit,
-                filter={"domain": domain},
-            )
+        results = await asyncio.to_thread(
+            vectorstore.get,
+            include=["metadatas"],
+        )
 
-            # Format results for similarity search
-            documents = []
-            for doc, score in results:
-                documents.append(
-                    {
-                        "content": doc.page_content,
-                        "metadata": doc.metadata,
-                        "similarity_score": score,
-                    }
-                )
-        else:
-            # Get all documents in domain (using async method with filter)
-            all_docs = await vectorstore.aget_by_ids([])
-
-            # Filter documents by domain
-            domain_docs = []
-            for i, metadata in enumerate(all_docs["metadatas"]):
-                if metadata.get("domain") == domain:
-                    domain_docs.append(
-                        {
-                            "content": all_docs["documents"][i],
-                            "metadata": metadata,
-                            "similarity_score": 1.0,  # No relevance score for direct retrieval
-                        }
-                    )
-                    if len(domain_docs) >= limit:
-                        break
-
-            documents = domain_docs
-
-        return {
-            "domain": domain,
-            "query": query,
-            "documents": documents,
-            "total_results": len(documents),
-            "timestamp": datetime.now().isoformat(),
-        }
+        # Format results for similarity search
+        domains = set()
+        for metadata in results["metadatas"]:
+            domain = metadata.get("domain")
+            if domain:
+                domains.add(domain)
+        return {"domains": list(domains)}
     except Exception as e:  # pylint: disable=broad-exception-caught
         return {
             "error": str(e),
-            "domain": domain,
-            "query": query,
             "timestamp": datetime.now().isoformat(),
         }
 

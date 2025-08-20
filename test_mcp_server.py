@@ -38,6 +38,16 @@ async def test_mcp_server():
     # Load environment variables
     load_dotenv()
 
+    print("4. Testing get_domains...", end="")
+    async with Client(server) as client:
+        result = await client.call_tool("get_domains", {})
+        assert not result.is_error
+
+        parsed_result = parse_tool_result(result)
+        print(f"{parsed_result=}")
+        assert "domains" in parsed_result
+        print(f" {len(parsed_result['domains'])} domains found. ✅")
+
     print("1. Testing search_documents...", end="")
     async with Client(server) as client:
         result = await client.call_tool("search_documents", {"text": "DCI", "limit": 3})
