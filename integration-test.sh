@@ -1,9 +1,17 @@
 #!/bin/bash
 
+# Integration test script for Second Brain Agent
+# This script:
+# 1. Sets up a test environment with ChromaDB
+# 2. Processes test documents
+# 3. Tests various functionality including similarity search and QA
+# 4. Runs pytest integration tests to validate MCP server functionality
+# 5. Tests document lifecycle (create, modify, delete)
+
 set -ex
 
 if [ -f /etc/redhat-release ]; then
-    sudo dnf install -y inotify-tools docker-compose
+    sudo dnf install -y inotify-tools podman-compose
 else
     sudo apt-get install inotify-tools docker-compose
 fi
@@ -110,6 +118,10 @@ if grep -q "I don't know." <<< "$RES"; then
     exit 1
 fi
 
+# Run pytest integration tests with the test data
+echo "*** Running pytest integration tests with test data..."
+poetry run pytest -m integration -v
+
 # restart the container to be sure to have stored the information on disk
 $compose restart
 
@@ -150,7 +162,7 @@ touch $SRCDIR/langchain.md
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-md | grep "skipping $SRCDIR/langchain.md / .* as content did not change"; then
+    if journalctl --user -u sba-md | grep "content is the same for ${DSTDIR}/Text/langchain.json"; then
         echo "*** Found finished marker"
         break
     fi
@@ -158,7 +170,7 @@ while [ $TRY -lt 30 ]; do
 done
 journalctl --user -u sba-md
 jq . $TOP/.second-brain/checksums.json
-journalctl --user -u sba-md | grep "skipping $SRCDIR/langchain.md / .* as content did not change"
+journalctl --user -u sba-md | grep "content is the same for ${DSTDIR}/Text/langchain.json"
 
 # wait a bit to be sure to have all the logs in different seconds
 # for the vacuum cleaning process to work
@@ -230,6 +242,10 @@ journalctl --user -u sba-txt | grep -q "Removing .* related files to $TOP/.secon
 
 # be sure we don't have anymore document in the vector database
 poetry run ./similarity.py ""
-poetry run ./similarity.py "" 2>&1 | grep "Number of documents in the vector store: 0"
+poetry run ./similarity.py "" | wc -l | grep "0"
+
+# Run pytest integration tests
+echo "*** Running pytest integration tests..."
+poetry run pytest -m integration -v
 
 # integration-test.sh ends here

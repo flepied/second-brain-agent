@@ -52,3 +52,18 @@ pytest = "*"
 pytest-asyncio = "*"
 pylint = "*"
 pre-commit = "*"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (requires external services like vector database)",
+    "unit: marks tests as unit tests (can run without external services)",
+]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--disable-warnings",
+]
+testpaths = ["."]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

@@ -68,7 +68,7 @@ repos:
     hooks:
       - id: pytest
         name: Pytest checks
-        entry: poetry run pytest
+        entry: poetry run pytest -m "not integration"
         language: python
         pass_filenames: false
         files: ".*\\.py$"

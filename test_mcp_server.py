@@ -28,9 +28,24 @@ def parse_tool_result(result):
     pytest.fail("No content returned from tool")
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_mcp_server():
-    """Test the MCP server functions using the proper client pattern"""
+    """Test the MCP server functions using the proper client pattern.
+
+    This test requires a running vector database and is marked as an integration test.
+    It will be skipped during unit test runs (e.g., pre-commit) but can be run
+    explicitly with: pytest -m integration
+
+    To run only unit tests (excluding integration tests):
+        pytest -m "not integration"
+
+    To run only integration tests:
+        pytest -m integration
+
+    To run all tests:
+        pytest
+    """
 
     print("Testing MCP Server for Second Brain Agent")
     print("=" * 50)

@@ -212,8 +212,38 @@ $ poetry install --with test
 And then run the tests, like this:
 
 ```ShellSession
+# Run all tests (unit + integration)
 $ poetry run pytest
+
+# Run only unit tests (no external dependencies required)
+$ poetry run pytest -m "not integration"
+
+# Run only integration tests (requires vector database)
+$ poetry run pytest -m integration
+
+# Run only unit tests (same as above, more explicit)
+$ poetry run pytest -m unit
 ```
+
+**Note**: Integration tests require a running vector database and are automatically excluded during pre-commit hooks. Unit tests run without external dependencies and are suitable for CI/CD pipelines.
+
+### Full Integration Testing
+
+For comprehensive testing of the entire system including the vector database and MCP server:
+
+```ShellSession
+$ ./integration-test.sh
+```
+
+This script:
+
+* Sets up a complete test environment with ChromaDB
+* Processes test documents through the system
+* Runs pytest integration tests to validate MCP server functionality
+* Tests document lifecycle (create, modify, delete)
+* Provides end-to-end validation of the system
+
+**Note**: This requires docker-compose/podman-compose and will create temporary test data.
 
 ### pre-commit
 
