@@ -12,5 +12,5 @@ compose.yaml: poetry.lock
 	sed -i -e "s@ghcr.io/chroma-core/chroma:.*@ghcr.io/chroma-core/chroma:$$VER@" compose.yaml
 
 poetry.lock: pyproject.toml
-	poetry lock --no-update
+	poetry lock
 	touch poetry.lock

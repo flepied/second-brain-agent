@@ -1,5 +1,4 @@
-"""Misc functions used in other scripts
-"""
+"""Misc functions used in other scripts"""
 
 import datetime
 import hashlib
@@ -12,7 +11,7 @@ import time
 import chromadb
 from langchain.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
 # pylint: disable=no-name-in-module
@@ -58,13 +57,9 @@ def get_vectorstore():
                 embedding_function=get_embeddings(),
                 client=client,
             )
-            print(
-                f"Number of documents in the vector store: {vectorstore._collection.count()}",  # pylint: disable=protected-access
-                file=sys.stderr,
-            )
             break
-        except Exception as excpt:  # pylint: disable=broad-except
-            print(excpt, file=sys.stderr)
+        except Exception as expt:  # pylint: disable=broad-except
+            print(expt, file=sys.stderr)
             print(
                 f"Could not connect to the vector store, retrying in 5 seconds ({tries})",
                 file=sys.stderr,
@@ -275,16 +270,33 @@ class ChecksumStore:
         if os.path.exists(self.checksum_file):
             with open(self.checksum_file, encoding="utf-8") as in_f:
                 self.checksums = json.load(in_f)
+        modified = False
+        for key in list(self.checksums.keys()):
+            if not os.path.exists(key):
+                print(
+                    f"Removing checksum for {key} as the file does not exist",
+                    file=sys.stderr,
+                )
+                del self.checksums[key]
+                modified = True
+        if modified:
+            print("Saving modified checksums", file=sys.stderr)
+            self.save_checksums()
 
     def store_checksum(self, filename, checksum):
         "Store the checksum of a file"
         self.checksums[filename] = checksum
+        self.save_checksums()
+
+    def save_checksums(self):
+        "Save the checksums to the checksum file"
         with open(self.checksum_file, "w", encoding="utf-8") as out_f:
             json.dump(self.checksums, out_f)
 
     def has_file_changed(self, filename):
         "Check if a file has changed"
         checksum = self.compute_checksum(filename)
+        print(f"Computed checksum for {filename}: {checksum}", file=sys.stderr)
         if filename not in self.checksums:
             self.store_checksum(filename, checksum)
             return None
@@ -302,7 +314,7 @@ class ChecksumStore:
         with open(filename, "rb") as in_f:
             for chunk in iter(lambda: in_f.read(4096), b""):
                 hash_function.update(chunk)
-                return hash_function.hexdigest()
+        return hash_function.hexdigest()
 
 
 class DateTimeEncoder(json.JSONEncoder):

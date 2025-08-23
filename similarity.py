@@ -23,6 +23,9 @@ def split_filter(args):
 def main(query, **kwargs):
     "Entry point"
     vector_store = get_vectorstore()
+    # Remove empty filter to avoid ChromaDB error
+    if "filter" in kwargs and not kwargs["filter"]:
+        del kwargs["filter"]
     results = vector_store.similarity_search_with_relevance_scores(query, **kwargs)
     for result in results:
         print(f"{result[0].metadata['source']}: {result[1]} ({result[0].metadata})")

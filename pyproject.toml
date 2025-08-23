@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "second-brain-agent"
-version = "0.6.0"
+version = "0.7.0"
 description = "Second Brain AI Agent"
 authors = ["Frederic Lepied <flepied@gmail.com>"]
 license = "GPL 3.0"
@@ -15,13 +15,14 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]  # main dependency group
-python = ">=3.9,<3.12"
+python = ">=3.10,<3.12"
 
 bs4 = "*"
 chromadb = ">=0.4"
 huggingface_hub = "*"
 langchain = "*"
 langchain-community = "*"
+langchain-chroma = "^0.2.5"
 langchain-openai = "*"
 langchain-huggingface = "*"
 openai = "*"
@@ -35,17 +36,34 @@ youtube-transcript-api = "*"
 yt-dlp = "*"
 pydub = "*"
 markdown = "*"
-# avoid incompatibility with langchain
-pydantic = ">=1.9,<2.0"
+# Updated for fastmcp compatibility
+pydantic = ">=2.5.3"
 # workarounds for streamlit dependencies
 altair = "<5"
 protobuf = "~=3.19.0"
 click = "=8"
 assemblyai = "^0.17.0"
+fastmcp = "^2.11.0"
 
 [tool.poetry.group.test]  # This part can be left out
 
 [tool.poetry.group.test.dependencies]
 pytest = "*"
+pytest-asyncio = "*"
 pylint = "*"
 pre-commit = "*"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (requires external services like vector database)",
+    "unit: marks tests as unit tests (can run without external services)",
+]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--disable-warnings",
+]
+testpaths = ["."]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

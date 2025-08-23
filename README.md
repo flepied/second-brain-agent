@@ -71,9 +71,60 @@ To classify documents, the second brain agent uses a concept of a domain per doc
 
 To know which domain to use to filter documents, the second brain agent uses a special document that can be described in the `.env` files in the `SBA_ORG_DOC` variable and is defaulting to `SecondBrainOrganization.md`. This document describes the mapping between domains and other concepts if you want for example to separate work and personal activities.
 
+## MCP Server
+
+The Second Brain Agent now includes an MCP (Model Context Protocol) server that provides programmatic access to the vector database and document retrieval system. This allows other applications to integrate with your second brain without interfacing at the reasoning level.
+
+### MCP Server Features
+
+* **Query Vector Database**: Ask questions and get answers from your indexed content
+* **Search Documents**: Perform semantic search across your documents with metadata filtering
+* **Document Management**: Get document counts, metadata, and list available domains
+* **Domain-based Search**: Search within specific domains (work, personal, etc.)
+* **Recent Documents**: Retrieve recently accessed documents
+
+### Using the MCP Server
+
+1. **Install the MCP server**:
+
+   ```bash
+   poetry add fastmcp
+   ```
+
+2. **Run the MCP server**:
+
+   ```bash
+   poetry run python mcp_server.py
+   ```
+
+3. **Test the server**:
+
+   ```bash
+   poetry run python test_mcp_server.py
+   ```
+
+4. **Configure MCP clients** using the `mcp_config.json` file:
+
+   ```json
+   {
+     "mcpServers": {
+       "second-brain-agent": {
+         "command": "/your/path/to/second-brain-agent/mcp-server.sh"
+       }
+     }
+   }
+   ```
+
+### Available MCP Tools
+
+* `search_documents`: Search for documents using semantic similarity
+* `get_document_count`: Get the total number of documents
+* `get_domains`: List all available domains
+* `get_recent_documents`: Get recently accessed documents
+
 ## Installation
 
-You need a Python 3 interpreter, [`poetry`](https://github.com/python-poetry/install.python-poetry.org) and the `inotify-tools` installed. All this has been tested under Fedora Linux 38 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.
+You need a Python 3 interpreter, [`poetry`](https://github.com/python-poetry/install.python-poetry.org) and the `inotify-tools` installed. All this has been tested under Fedora Linux 42 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.
 
 Get the source code:
 
@@ -128,7 +179,7 @@ $ ./similarity.py "What is LangChain?" type=notes
 
 ### Searching for new connections between notes
 
-Use the vector store to find new conncetions between notes:
+Use the vector store to find new connections between notes:
 
 ```ShellSession
 $ ./smart_connections.py
@@ -161,8 +212,38 @@ $ poetry install --with test
 And then run the tests, like this:
 
 ```ShellSession
+# Run all tests (unit + integration)
 $ poetry run pytest
+
+# Run only unit tests (no external dependencies required)
+$ poetry run pytest -m "not integration"
+
+# Run only integration tests (requires vector database)
+$ poetry run pytest -m integration
+
+# Run only unit tests (same as above, more explicit)
+$ poetry run pytest -m unit
 ```
+
+**Note**: Integration tests require a running vector database and are automatically excluded during pre-commit hooks. Unit tests run without external dependencies and are suitable for CI/CD pipelines.
+
+### Full Integration Testing
+
+For comprehensive testing of the entire system including the vector database and MCP server:
+
+```ShellSession
+$ ./integration-test.sh
+```
+
+This script:
+
+* Sets up a complete test environment with ChromaDB
+* Processes test documents through the system
+* Runs pytest integration tests to validate MCP server functionality
+* Tests document lifecycle (create, modify, delete)
+* Provides end-to-end validation of the system
+
+**Note**: This requires docker-compose/podman-compose and will create temporary test data.
 
 ### pre-commit
 

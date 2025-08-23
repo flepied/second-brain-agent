@@ -1,26 +1,27 @@
-import unittest
+import pytest
 
 import lib
 
 
-class TestLib(unittest.TestCase):
+@pytest.mark.unit
+class TestLib:
+    """Unit tests for lib module functions.
+
+    These tests can run without external dependencies and are marked as unit tests.
+    They will run during pre-commit hooks and can be run with: pytest -m unit
+    """
+
     def test_nothing(self):
-        self.assertEqual(lib.cleanup_text("cleaned"), "cleaned")
+        assert lib.cleanup_text("cleaned") == "cleaned"
 
     def test_hashtag(self):
-        self.assertEqual(lib.cleanup_text("#cleaned"), "cleaned")
+        assert lib.cleanup_text("#cleaned") == "cleaned"
 
     def test_newlines(self):
-        self.assertEqual(lib.cleanup_text("salut\n\n\nles amis"), "salut\n\nles amis")
+        assert lib.cleanup_text("salut\n\n\nles amis") == "salut\n\nles amis"
 
     def test_https(self):
-        self.assertEqual(lib.cleanup_text("https://doc.distributed-ci.io/"), "")
+        assert lib.cleanup_text("https://doc.distributed-ci.io/") == ""
 
     def test_spaces(self):
-        self.assertEqual(lib.cleanup_text("\n     \n"), "\n\n")
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-# test_lib.py ends here
+        assert lib.cleanup_text("\n     \n") == "\n\n"

@@ -1,9 +1,17 @@
 #!/bin/bash
 
+# Integration test script for Second Brain Agent
+# This script:
+# 1. Sets up a test environment with ChromaDB
+# 2. Processes test documents
+# 3. Tests various functionality including similarity search and QA
+# 4. Runs pytest integration tests to validate MCP server functionality
+# 5. Tests document lifecycle (create, modify, delete)
+
 set -ex
 
 if [ -f /etc/redhat-release ]; then
-    sudo dnf install -y inotify-tools docker-compose
+    sudo dnf install -y inotify-tools podman-compose
 else
     sudo apt-get install inotify-tools docker-compose
 fi
@@ -26,30 +34,36 @@ bash -x ./install-systemd-services.sh
 
 sleep 5
 
+if type -p podman-compose; then
+    compose=podman-compose
+else
+    compose=docker-compose
+fi
+
 # wait for chromadb to be started
 TRY=0
 while [ $TRY -lt 30 ]; do
      TRY=$(( TRY + 1 ))
-    if docker-compose ps | grep -q " Up "; then
+    if $compose ps | grep -q " Up "; then
         echo "*** Found finished marker"
         break
      fi
     sleep 1
 done
-docker-compose ps
-docker-compose ps | grep -q " Up "
+$compose ps
+$compose ps | grep -q " Up "
 
 TRY=0
 while [ $TRY -lt 24 ]; do
      TRY=$(( TRY + 1 ))
-    if docker-compose logs | grep -q "Application startup complete"; then
+    if $compose logs | grep -q "Connect to Chroma at: "; then
         echo "*** Found finished marker"
         break
      fi
     sleep 5
 done
-docker-compose logs
-docker-compose logs | grep -q "Application startup complete"
+$compose logs
+$compose logs | grep -q "Connect to Chroma at: "
 
 # create the document
 cat > $SRCDIR/langchain.md <<EOF
@@ -104,6 +118,37 @@ if grep -q "I don't know." <<< "$RES"; then
     exit 1
 fi
 
+# Run pytest integration tests with the test data
+echo "*** Running pytest integration tests with test data..."
+poetry run pytest -m integration -v
+
+# restart the container to be sure to have stored the information on disk
+$compose restart
+
+TRY=0
+while [ $TRY -lt 24 ]; do
+     TRY=$(( TRY + 1 ))
+    if $compose logs | grep -q "Connect to Chroma at: "; then
+        echo "*** Found finished marker"
+        break
+     fi
+    sleep 5
+done
+$compose logs
+$compose logs | grep -q "Connect to Chroma at: "
+
+# test the vector store
+RES=$(poetry run ./similarity.py "What is langchain?")
+echo "$RES"
+test -n "$RES"
+
+# test the vector store and llm
+RES=$(poetry run ./qa.py "What is langchain?")
+echo "$RES"
+if grep -q "I don't know." <<< "$RES"; then
+    exit 1
+fi
+
 # wait a bit to be sure to have all the logs in different seconds
 # for the vacuum cleaning process to work
 sleep 2
@@ -117,7 +162,7 @@ touch $SRCDIR/langchain.md
 TRY=0
 while [ $TRY -lt 30 ]; do
     TRY=$(( TRY + 1 ))
-    if journalctl --user -u sba-md | grep "skipping $SRCDIR/langchain.md / .* as content did not change"; then
+    if journalctl --user -u sba-md | grep "content is the same for ${DSTDIR}/Text/langchain.json"; then
         echo "*** Found finished marker"
         break
     fi
@@ -125,7 +170,7 @@ while [ $TRY -lt 30 ]; do
 done
 journalctl --user -u sba-md
 jq . $TOP/.second-brain/checksums.json
-journalctl --user -u sba-md | grep "skipping $SRCDIR/langchain.md / .* as content did not change"
+journalctl --user -u sba-md | grep "content is the same for ${DSTDIR}/Text/langchain.json"
 
 # wait a bit to be sure to have all the logs in different seconds
 # for the vacuum cleaning process to work
@@ -197,6 +242,10 @@ journalctl --user -u sba-txt | grep -q "Removing .* related files to $TOP/.secon
 
 # be sure we don't have anymore document in the vector database
 poetry run ./similarity.py ""
-poetry run ./similarity.py "" 2>&1 | grep "Number of documents in the vector store: 0"
+poetry run ./similarity.py "" | wc -l | grep "0"
+
+# Run pytest integration tests
+echo "*** Running pytest integration tests..."
+poetry run pytest -m integration -v
 
 # integration-test.sh ends here

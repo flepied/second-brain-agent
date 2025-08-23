@@ -42,7 +42,7 @@ def get_output_file_path(directory, base):
 
 
 def save_content(file_path, text, check_content=True, **metadata):
-    "save the text and metatada into a json file"
+    "save the text and metadata into a json file"
     if check_content:
         try:
             print(f"reading {file_path}", file=sys.stderr)
@@ -73,9 +73,8 @@ def process_youtube_line(basename, line, directory, last_accessed_at):
             print(f"transcript already exists for video {video_id}", file=sys.stderr)
             return True
         try:
-            transcript = YouTubeTranscriptApi.get_transcript(
-                video_id, languages=["en", "fr"]
-            )
+            ytt_api = YouTubeTranscriptApi()
+            transcript = ytt_api.fetch(video_id, languages=["en", "fr"])
             save_content(
                 transcript_path,
                 "\n".join([entry["text"] for entry in transcript]),
@@ -163,9 +162,9 @@ def process_url_line(basename, line, directory, last_accessed_at):
                     ),
                 )
             # pylint: disable=broad-exception-caught
-            except Exception as excpt:
+            except Exception as exc:
                 output = None
-                print(f"Unable to get {url}: {excpt}")
+                print(f"Unable to get {url}: {exc}")
         else:
             file_type = "web"
             output = UnstructuredURLLoader(
@@ -219,8 +218,8 @@ def process_mp3_line(basename, line, directory, last_accessed_at):
                 file_path=url, config=config, api_key=aai_api_key
             ).load()
         # pylint: disable=broad-exception-caught
-        except Exception as excp:
-            print(f"ERROR: Unable to trascript {url}: {excp}", file=sys.stderr)
+        except Exception as exc:
+            print(f"ERROR: Unable to transcript {url}: {exc}", file=sys.stderr)
             return True
         if output:
             save_content(
@@ -453,7 +452,7 @@ def process_md_file(fname, out_dir, checksum_store):
     if is_same_time(fname, oname):
         print(f"skipping {fname} as there is no time change", file=sys.stderr)
         return False
-    if checksum_store.has_file_changed(fname) is not False or not os.path.exists(oname):
+    if not os.path.exists(oname) or checksum_store.has_file_changed(fname) is not False:
         md_files = split_md_file(fname, os.path.join(out_dir, "Markdown"))
         for md_file in md_files:
             write_output_file(md_file, out_dir, None)
