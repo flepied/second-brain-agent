@@ -41,6 +41,12 @@ def process_chunk(  # pylint: disable=R0913,R0917
     chunk_metadata["main_source"] = fname
     if "referer" not in chunk_metadata:
         chunk_metadata["referer"] = basename
+
+    # Set created_at from file modification time if not already set
+    if "created_at" not in chunk_metadata:
+        stat = os.stat(fname)
+        chunk_metadata["created_at"] = stat.st_mtime
+
     with open(oname, "w", encoding="utf-8") as out_f:
         print(chunk, file=out_f)
     # set the timestamp to be the same

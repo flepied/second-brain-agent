@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import sys
+from typing import Optional
 
 import assemblyai as aai
 import yt_dlp
@@ -34,6 +35,33 @@ from lib import ChecksumStore, DateTimeEncoder, is_history_filename, is_same_tim
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
 HTTP_REGEX = re.compile(r"https://[^ ]+|file://[^ ]+|~?/.+")
 IGNORED_REGEX = re.compile(r"^https://(docs.google.com|source.redhat.com)")
+
+_YOUTUBE_ERROR_MESSAGES: list[
+    tuple[type[_errors.YouTubeTranscriptApiException], str]
+] = [
+    (_errors.TranscriptsDisabled, "transcript disabled"),
+    (_errors.NoTranscriptFound, "no transcript found"),
+    (_errors.VideoUnplayable, "video is unplayable"),
+    (_errors.VideoUnavailable, "video is unavailable"),
+    (_errors.IpBlocked, "video blocked by IP"),
+    (_errors.RequestBlocked, "video request blocked"),
+    (_errors.AgeRestricted, "video is age restricted"),
+    (_errors.CookieInvalid, "cookie invalid"),
+    (_errors.CookiePathInvalid, "cookie path invalid"),
+    (_errors.CookieError, "cookie error"),
+    (_errors.FailedToCreateConsentCookie, "failed to create consent cookie"),
+    (_errors.HTTPError, "HTTP error"),
+    (_errors.InvalidVideoId, "invalid video ID"),
+    (_errors.NotTranslatable, "not translatable"),
+    (_errors.PoTokenRequired, "PO token required"),
+    (
+        _errors.TranslationLanguageNotAvailable,
+        "translation language not available",
+    ),
+    (_errors.YouTubeDataUnparsable, "YouTube data unparsable"),
+    (_errors.YouTubeRequestFailed, "YouTube request failed"),
+    (_errors.YouTubeTranscriptApiException, "YouTube API exception"),
+]
 
 
 def get_output_file_path(directory, base):
@@ -62,60 +90,126 @@ def save_content(file_path, text, check_content=True, **metadata):
     return True
 
 
-def process_youtube_line(basename, line, directory, last_accessed_at):
-    "Test the line contains a youtube url and extract the transcript in the output directory"
-    res = YOUTUBE_REGEX.search(line)
-    if res:
-        video_id = res.group(1)
-        print(f"found youtube video {video_id}", file=sys.stderr)
-        transcript_path = get_output_file_path(directory, video_id)
-        if os.path.exists(transcript_path):
-            print(f"transcript already exists for video {video_id}", file=sys.stderr)
-            return True
-        try:
-            ytt_api = YouTubeTranscriptApi()
-            transcript = ytt_api.fetch(video_id, languages=["en", "fr"])
-            save_content(
-                transcript_path,
-                "\n".join([entry["text"] for entry in transcript]),
-                url=f"https://www.youtube.com/watch/{video_id}",
-                referer=basename,
-                type="youtube",
-                last_accessed_at=last_accessed_at,
-            )
-            return True
-        except _errors.TranscriptsDisabled:
-            print(f"transcript disabled for video {video_id}", file=sys.stderr)
-        except _errors.NoTranscriptFound:
-            print(f"no transcript found for video {video_id}", file=sys.stderr)
-            print(f"writing video transcript {video_id}.txt", file=sys.stderr)
-        print(f"falling back to whisper for {video_id}", file=sys.stderr)
-        # Directory to save audio files
-        save_dir = os.path.join(directory, "Orig")
+def _extract_video_id(line: str) -> Optional[str]:
+    """Return the YouTube video identifier when present in the provided line."""
 
-        # Transcribe the videos to text
-        loader = GenericLoader(
-            YoutubeAudioLoader([f"https://youtu.be/{video_id}"], save_dir),
-            OpenAIWhisperParser(),
-        )
-        try:
-            docs = loader.load()
-        except yt_dlp.utils.DownloadError:
-            print(
-                f"ERROR: unable to download youtube video {video_id}",
-                file=sys.stderr,
-            )
-            return False
-        save_content(
-            transcript_path,
-            "\n".join([doc.page_content for doc in docs]),
-            url=f"https://www.youtube.com/watch/{video_id}",
-            referer=basename,
-            type="youtube",
-            last_accessed_at=last_accessed_at,
+    match = YOUTUBE_REGEX.search(line)
+    return None if match is None else match.group(1)
+
+
+def _transcript_already_exists(transcript_path: str, video_id: str) -> bool:
+    """Check whether a transcript already exists and log the finding."""
+
+    if os.path.exists(transcript_path):
+        print(
+            f"transcript already exists for video {video_id}",
+            file=sys.stderr,
         )
         return True
     return False
+
+
+def _describe_transcript_error(
+    error: _errors.YouTubeTranscriptApiException,
+) -> str:
+    """Provide a human readable message for a transcript retrieval error."""
+
+    for error_type, message in _YOUTUBE_ERROR_MESSAGES:
+        if isinstance(error, error_type):
+            return message
+    return "unexpected YouTube transcript error"
+
+
+def _try_fetch_transcript(
+    video_id: str,
+    transcript_path: str,
+    basename: str,
+    last_accessed_at: datetime.datetime | None,
+) -> bool:
+    """Attempt to fetch a YouTube transcript via the public API."""
+
+    try:
+        ytt_api = YouTubeTranscriptApi()
+        transcript = ytt_api.fetch(video_id, languages=["en", "fr"])
+    except _errors.YouTubeTranscriptApiException as error:
+        message = _describe_transcript_error(error)
+        print(f"video {video_id} {message}: {error}", file=sys.stderr)
+        return True
+
+    save_content(
+        transcript_path,
+        "\n".join(entry.text for entry in transcript),
+        url=f"https://www.youtube.com/watch/{video_id}",
+        referer=basename,
+        type="youtube",
+        last_accessed_at=last_accessed_at,
+    )
+    return True
+
+
+def _download_with_whisper(
+    video_id: str,
+    directory: str,
+    basename: str,
+    transcript_path: str,
+    last_accessed_at: datetime.datetime | None,
+) -> bool:
+    """Fallback to downloading audio and transcribing it locally."""
+
+    print(f"falling back to whisper for {video_id}", file=sys.stderr)
+    save_dir = os.path.join(directory, "Orig")
+    loader = GenericLoader(
+        YoutubeAudioLoader([f"https://youtu.be/{video_id}"], save_dir),
+        OpenAIWhisperParser(),
+    )
+    try:
+        docs = loader.load()
+    except yt_dlp.utils.DownloadError:
+        print(
+            f"ERROR: unable to download youtube video {video_id}",
+            file=sys.stderr,
+        )
+        return False
+
+    save_content(
+        transcript_path,
+        "\n".join(doc.page_content for doc in docs),
+        url=f"https://www.youtube.com/watch/{video_id}",
+        referer=basename,
+        type="youtube",
+        last_accessed_at=last_accessed_at,
+    )
+    return True
+
+
+def process_youtube_line(
+    basename: str,
+    line: str,
+    directory: str,
+    last_accessed_at: datetime.datetime | None,
+) -> bool:
+    """Extract YouTube transcripts and store them under the output directory."""
+
+    video_id = _extract_video_id(line)
+    if video_id is None:
+        return False
+
+    print(f"found youtube video {video_id}", file=sys.stderr)
+    transcript_path = get_output_file_path(directory, video_id)
+
+    if _transcript_already_exists(transcript_path, video_id):
+        return True
+
+    if _try_fetch_transcript(video_id, transcript_path, basename, last_accessed_at):
+        return True
+
+    return _download_with_whisper(
+        video_id,
+        directory,
+        basename,
+        transcript_path,
+        last_accessed_at,
+    )
 
 
 def process_url_line(basename, line, directory, last_accessed_at):
@@ -257,7 +351,7 @@ def process_content(basename, content, directory, last_accessed_at):
         process_line(basename, line, directory, last_accessed_at)
 
 
-def get_metadata(content):
+def get_metadata(content, file_path=None):
     "Extract metadata from the header and remove the header from the content"
     metadata = {}
     lines = content.split("\n")
@@ -280,6 +374,15 @@ def get_metadata(content):
             del metadata["date"]
         except ValueError:
             pass
+
+    # Set created_at from file modification time if not already set
+    if "created_at" not in metadata and file_path:
+        try:
+            stat = os.stat(file_path)
+            metadata["created_at"] = datetime.datetime.fromtimestamp(stat.st_mtime)
+        except (OSError, FileNotFoundError):
+            pass
+
     content = "\n".join(lines[idx:])
     return metadata, content
 
@@ -395,9 +498,9 @@ def write_output_file(md_file, out_dir, metadata):
     last_accessed_at = datetime.datetime.fromtimestamp(md_stat.st_mtime)
     basename = os.path.basename(md_file[:-3])
     if metadata is None:
-        metadata, content = get_metadata(output)
+        metadata, content = get_metadata(output, md_file)
     else:
-        new_metadata, content = get_metadata(output)
+        new_metadata, content = get_metadata(output, md_file)
         metadata.update(new_metadata)
     metadata["last_accessed_at"] = last_accessed_at
     if "url" not in metadata:
