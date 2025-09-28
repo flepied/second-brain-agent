@@ -38,6 +38,8 @@ repos:
       - id: codespell
         args:
           - "--exclude-file=poetry.lock"
+          - "-L"
+          - "referers,referer,nin"
 
   - repo: https://github.com/jackdewinter/pymarkdown
     rev: v0.9.32

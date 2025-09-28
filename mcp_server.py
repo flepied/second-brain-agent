@@ -38,43 +38,333 @@ async def search_documents(
     limit: Annotated[int, "Maximum number of results to return (default: 10)"] = 10,
     filter_metadata: Annotated[
         Optional[Dict[str, Any]],
-        """Optional metadata filters (e.g., {'type': 'history', 'domain': 'work'}).
-Complex filers can be used on metadata fields:
+        """Optional metadata filters for complex document queries.
 
-        {"$and": [ { "type": { "$eq": "notes" } },
-                   { "created_at": { $gt: 1685469600.0 } }
-                 ]
-        }
+**USAGE EXAMPLES:**
+- To find YouTube videos: `{"type": "youtube"}`
+- To find YouTube videos from 2025: `{"$and": [{"type": {"$eq": "youtube"}}, {"last_accessed_at": {"$gte": 1735689600.0}}]}`
+- To find all documents: `{}` (empty dict) or omit this parameter
+- To find work notes: `{"type": "notes", "domain": "work"}`
+
+**Basic Examples:**
+- `{'type': 'notes'}` - Find all personal notes (shorthand for `{'type': {'$eq': 'notes'}}`)
+- `{'domain': 'work'}` - Find all work-related documents
+- `{'type': 'youtube', 'domain': 'personal'}` - Find YouTube videos in personal domain (requires `$and` for multiple conditions)
+
+**Complex Query Examples:**
+
+1. **Date Range Queries:**
+   ```python
+   # Documents created after a specific timestamp
+   {"created_at": {"$gt": 1685469600.0}}
+
+   # Documents created in the last 30 days
+   {"created_at": {"$gte": (datetime.now() - timedelta(days=30)).timestamp()}}
+
+   # Documents created between two dates
+   {"$and": [
+       {"created_at": {"$gte": 1685469600.0}},
+       {"created_at": {"$lte": 1693152000.0}}
+   ]}
+   ```
+
+2. **Multiple Type Filtering:**
+   ```python
+   # Find notes OR history documents
+   {"$or": [
+       {"type": {"$eq": "notes"}},
+       {"type": {"$eq": "history"}}
+   ]}
+
+   # Find all document types except audio
+   {"type": {"$ne": "audio"}}
+   ```
+
+3. **Domain and Type Combinations:**
+   ```python
+   # Work-related notes created recently
+   {"$and": [
+       {"domain": {"$eq": "work"}},
+       {"type": {"$eq": "notes"}},
+       {"created_at": {"$gt": 1685469600.0}}
+   ]}
+
+   # Personal YouTube videos or PDFs
+   {"$and": [
+       {"domain": {"$eq": "personal"}},
+       {"$or": [
+           {"type": {"$eq": "youtube"}},
+           {"type": {"$eq": "pdf"}}
+       ]}
+   ]}
+   ```
+
+4. **Referer and Source Filtering:**
+   ```python
+   # Documents from a specific referer
+   {"referer": {"$eq": "DciNotes"}}
+
+   # Documents from multiple referers
+   {"referer": {"$in": ["DciNotes", "ProjectNotes", "MeetingNotes"]}}
+
+   # Documents with specific source pattern (use exact match instead of regex)
+   {"source": {"$eq": "/home/flepied/.second-brain/Chunk/DciNotes20240406-0001.txt"}}
+   ```
+
+5. **Part and Chunk Filtering:**
+   ```python
+   # First part of multi-part documents
+   {"part": {"$eq": 1}}
+
+   # Documents with multiple parts (not first part)
+   {"part": {"$gt": 1}}
+
+   # Specific part range
+   {"$and": [
+       {"part": {"$gte": 2}},
+       {"part": {"$lte": 5}}
+   ]}
+   ```
+
+6. **Last Accessed Time Filtering:**
+   ```python
+   # Recently accessed documents (last 7 days)
+   {"last_accessed_at": {"$gte": (datetime.now() - timedelta(days=7)).timestamp()}}
+
+   # Documents accessed more than 30 days ago
+   {"last_accessed_at": {"$lt": (datetime.now() - timedelta(days=30)).timestamp()}}
+   ```
+
+7. **URL and Main Source Filtering:**
+   ```python
+   # Documents from specific URL pattern (use exact match instead of regex)
+   {"url": {"$eq": "https://github.com/hieblmi/go-host-lnaddr"}}
+
+   # Documents with specific main source (use exact match instead of exists)
+   {"main_source": {"$eq": "/home/flepied/.second-brain/Text/DciNotes20240406.json"}}
+
+   # Documents with different main source (use not equal instead of exists false)
+   {"main_source": {"$ne": "/home/flepied/.second-brain/Text/DciNotes20240406.json"}}
+   ```
+
+8. **Complex Nested Queries:**
+   ```python
+   # Work notes created in last 30 days OR personal YouTube videos
+   {"$or": [
+       {"$and": [
+           {"domain": {"$eq": "work"}},
+           {"type": {"$eq": "notes"}},
+           {"created_at": {"$gte": (datetime.now() - timedelta(days=30)).timestamp()}}
+       ]},
+       {"$and": [
+           {"domain": {"$eq": "personal"}},
+           {"type": {"$eq": "youtube"}}
+       ]}
+   ]}
+
+   # Documents with specific referer pattern AND created recently
+   {"$and": [
+       {"referer": {"$eq": "OpenSourceStategyProject"}},
+       {"created_at": {"$gte": 1685469600.0}},
+       {"$or": [
+           {"type": {"$eq": "notes"}},
+           {"type": {"$eq": "history"}}
+       ]}
+   ]}
+   ```
+
+**Available Operators:**
+- `$eq`, `$ne` - Equal, Not equal
+- `$gt`, `$gte`, `$lt`, `$lte` - Greater than, Greater or equal, Less than, Less or equal (numeric values only)
+- `$in`, `$nin` - In array, Not in array
+- `$and`, `$or` - Logical operators
+- Shorthand: `{"key": "value"}` is equivalent to `{"key": {"$eq": "value"}}`
+
+**Limitations:**
+- `$regex`, `$exists`, `$contains`, `$like`, `$ilike`, and other pattern matching operators are NOT supported for metadata filtering
+- ChromaDB only supports the basic comparison operators listed above for metadata filtering
+- For pattern matching, use exact matches with `$eq` or `$ne`
+- For field existence, use `$eq` with specific values or `$ne` to exclude values
+- For substring matching, consider using semantic search with the `text` parameter instead of metadata filters
+- Example: Use `search_documents(text="github", limit=10)` instead of `{"url": {"$contains": "github"}}`
+
+**Complex Filtering Limitations:**
+- ChromaDB requires explicit `$and` operator when combining multiple conditions
+- **❌ Invalid**: `{"type": "youtube", "last_accessed_at": {"$gte": 1735689600.0}}`
+- **✅ Valid**: `{"$and": [{"type": {"$eq": "youtube"}}, {"last_accessed_at": {"$gte": 1735689600.0}}]}`
+- For complex date range queries, consider filtering results in Python after the initial search
+- Example: Search for `{"type": "youtube"}` then filter by date in your application code
+
+**Note on Document Filtering:**
+- ChromaDB supports `$contains`, `$not_contains`, and `$regex` for document content filtering
+- This MCP server now exposes both metadata filtering (`filter_metadata`) and content filtering (`filter_content`)
+- Use `filter_content` for exact text matching, `text` parameter for semantic search
+        """,
+    ] = None,
+    filter_content: Annotated[
+        Optional[Dict[str, Any]],
+        """Optional content filters for document text content.
+
+**Available Content Operators:**
+- `$contains` - Document contains the specified text
+- `$not_contains` - Document does not contain the specified text
+- `$regex` - Document matches the specified regex pattern
+- `$and`, `$or` - Logical operators for combining conditions
+
+**Examples:**
+```python
+# Find documents containing "github"
+{"$contains": "github"}
+
+# Find documents not containing "test"
+{"$not_contains": "test"}
+
+# Find documents matching regex pattern
+{"$regex": "(?i)python.*script"}
+
+# Complex content filtering
+{"$and": [
+    {"$contains": "python"},
+    {"$not_contains": "test"}
+]}
+
+# Multiple conditions
+{"$or": [
+    {"$contains": "github"},
+    {"$contains": "gitlab"}
+]}
+```
+
+**Note:** Content filtering searches within the document text content, not metadata.
         """,
     ] = None,
 ) -> Dict[str, Any]:
     """
-    Search for documents in the vector database using semantic similarity. The documents are split pieces if they contained an history and then each piece is split into chunks, and the search is performed on these chunks.
+        Search for documents in the vector database using semantic similarity. The documents are split pieces if they contained an history and then each piece is split into chunks, and the search is performed on these chunks.
 
-    Returns:
-        Dictionary containing search results like: {"documents": [{"content": "...", "metadata": {...}, "similarity_score": 0.95}], "total_results": 5, "timestamp": "2023-10-01T12:00:00Z"}
+        **QUICK START EXAMPLES:**
+        - Find YouTube videos: `search_documents(filter_metadata={"type": "youtube"})`
+        - Find YouTube videos from 2025: `search_documents(filter_metadata={"$and": [{"type": {"$eq": "youtube"}}, {"last_accessed_at": {"$gte": 1735689600.0}}]})`
+        - Find all documents: `search_documents()` or `search_documents(filter_metadata={})`
+        - Search for "python" in content: `search_documents(text="python")`
 
-        Example metadata: {'created_at': 1685469900.0, 'source': '~/.second-brain/Chunk/DciNotes20240406-0001.txt', 'last_accessed_at': 1712397600.0, 'part': 1, 'referer': 'DciNotes', 'url': 'file:///home/flepied/Wiki/DciNotes', 'type': 'history', 'main_source': '~/.second-brain//Text/DciNotes20240406.json'}
+        **IMPORTANT: Results are sorted by similarity score (most similar first), NOT by date or other criteria.**
+        To get the most recent documents, you'll need to sort them in your application code after retrieval.
 
-        similarity_score: float representing the similarity score of the document to the search text. Lower score represents more similarity.
+        **Date Field Availability:**
+        - `last_accessed_at`: File modification time of the source markdown file when processed
+          - **For markdown content**: When the .md file was last modified
+          - **For YouTube videos**: When the markdown file containing the YouTube link was modified
+          - **For web URLs**: When the markdown file containing the URL was modified
+          - **For text files**: Inherited from JSON metadata (may not be set)
+        - `created_at`: Document creation timestamp
+          - **For newer documents**: File modification time or date header from markdown
+          - **For older documents**: May not be set (use `last_accessed_at` instead)
+        - **Recommendation**: Use `last_accessed_at` as the most reliable date field for all documents
 
-        total_results: Total number of documents found matching the search criteria.
+        **Example: Get most recent YouTube videos:**
+        ```python
+        # Get all YouTube videos (sorted by similarity)
+        results = search_documents(filter_metadata={"type": "youtube"})
 
-        Details of the metadata:
-        - `created_at`: Timestamp when the document was created.
-        - `source`: Path to the source chunk.
-        - `last_accessed_at`: Timestamp when the document was last accessed.
-        - `part`: Part number of the chunk.
-        - `referer`: The referer document basename.
-        - `url`: URL or file path to the document that was split into chunks.
-        - `main_source`: Main piece of the document if there was an history.
-        - `domain`: Domain of the document, e.g., 'work', 'personal', 'project'. the domains are described in the `SecondBrainOrganization.md` document.
-        - `type`: Type of the document:
-            - 'youtube' for YouTube videos transcripts
-            - 'pdf' for PDF documents
-            - 'audio' for audio files like podcast transcripts
-            - 'history' for historical notes for projects
-            - 'notes' for personal notes. That is the **main type** of document.
+        # Sort by last_accessed_at (most reliable date field for all documents)
+        documents = results['documents']
+        sorted_docs = sorted(documents,
+                            key=lambda x: x['metadata'].get('last_accessed_at', 0),
+                            reverse=True)
+        most_recent = sorted_docs[0]  # Most recent YouTube video
+        ```
+
+        Returns:
+            Dictionary containing search results like: {"documents": [{"content": "...", "metadata": {...}, "similarity_score": 0.95}], "total_results": 5, "timestamp": "2023-10-01T12:00:00Z"}
+
+            Example metadata: {'created_at': 1685469900.0, 'source': '~/.second-brain/Chunk/DciNotes20240406-0001.txt', 'last_accessed_at': 1712397600.0, 'part': 1, 'referer': 'DciNotes', 'url': 'file:///home/flepied/Wiki/DciNotes', 'type': 'history', 'main_source': '~/.second-brain//Text/DciNotes20240406.json'}
+
+            similarity_score: float representing the similarity score of the document to the search text. Lower score represents more similarity.
+
+            total_results: Total number of documents found matching the search criteria.
+
+            **Metadata Field Details:**
+
+            **Date Fields:**
+            - `created_at`: Document creation timestamp (file modification time or date header)
+            - `last_accessed_at`: File modification time of source markdown file when processed
+
+            **Content Identification:**
+            - `type`: Document type classification
+                - `'notes'`: Personal notes (default for markdown files)
+                - `'youtube'`: YouTube video transcripts
+                - `'pdf'`: PDF document content
+                - `'web'`: Web page content
+                - `'audio'`: Audio file transcripts
+                - `'history'`: Historical project notes
+            - `domain`: Content domain (set from markdown header, e.g., 'work', 'personal', 'project')
+
+            **Source Tracking:**
+            - `source`: Path to the individual chunk file (e.g., `/path/to/Chunk/DciNotes20240406-0001.txt`)
+            - `main_source`: Path to the original JSON file before chunking (e.g., `/path/to/Text/DciNotes20240406.json`)
+            - `referer`: Basename of the source markdown file (e.g., 'DciNotes', 'WorkHistory20231201')
+            - `url`: Original URL or file path
+                - For markdown: `file:///path/to/file.md`
+                - For YouTube: `https://www.youtube.com/watch/VIDEO_ID`
+                - For web content: Original URL
+            - `part`: Chunk number within a document (1, 2, 3, etc.)
+
+            **Processing Context:**
+            - `last_accessed_at`: When the source markdown file was last modified (not when accessed)
+            - `created_at`: When the document was first processed (file modification time or date header)
+            - `referer`: Identifies which markdown file generated this content
+            - `main_source`: Points to the JSON file that was chunked to create this document
+
+    **Practical Use Cases:**
+
+    1. **Find Recent Work Notes:**
+       ```python
+       {"$and": [
+           {"domain": "work"},
+           {"type": "notes"},
+           {"created_at": {"$gte": (datetime.now() - timedelta(days=7)).timestamp()}}
+       ]}
+       ```
+
+    2. **Search for Project Documentation:**
+       ```python
+       {"$and": [
+           {"referer": {"$regex": ".*Project.*"}},
+           {"$or": [{"type": "notes"}, {"type": "history"}]}
+       ]}
+       ```
+
+    3. **Find Learning Materials:**
+       ```python
+       {"$or": [
+           {"type": "youtube"},
+           {"type": "pdf"},
+           {"type": "audio"}
+       ]}
+       ```
+
+    4. **Get Documents from Specific Time Period:**
+       ```python
+       {"$and": [
+           {"created_at": {"$gte": 1685469600.0}},  # After specific date
+           {"created_at": {"$lt": 1693152000.0}}    # Before specific date
+       ]}
+       ```
+
+    5. **Find Multi-part Documents:**
+       ```python
+       {"part": {"$gt": 1}}  # Documents with multiple parts
+       ```
+
+    6. **Search by URL Pattern:**
+       ```python
+       # For exact URL matches, use $eq
+       {"url": {"$eq": "https://github.com/hieblmi/go-host-lnaddr"}}
+
+       # For pattern matching, use semantic search instead of metadata filters
+       # search_documents(text="github", limit=10)  # This will find documents containing "github"
+       ```
     """
     try:
         vectorstore = get_vectorstore()
@@ -83,6 +373,8 @@ Complex filers can be used on metadata fields:
         search_kwargs = {"k": limit}
         if filter_metadata:
             search_kwargs["filter"] = filter_metadata
+        if filter_content:
+            search_kwargs["where_document"] = filter_content
 
         # Perform similarity search (using async method)
         results = await vectorstore.asimilarity_search_with_relevance_scores(
@@ -118,13 +410,161 @@ Complex filers can be used on metadata fields:
 async def get_document_count(
     filter_metadata: Annotated[
         Optional[Dict[str, Any]],
-        """Optional metadata filters (e.g., {'type': 'history', 'domain': 'work'}).
-Complex filers can be used on metadata fields:
+        """Optional metadata filters for complex document queries.
 
-        {"$and": [ { "type": { "$eq": "notes" } },
-                   { "created_at": { $gt: 1685469600.0 } }
-                 ]
-        }
+**Basic Examples:**
+- `{'type': 'notes'}` - Count all personal notes
+- `{'domain': 'work'}` - Count all work-related documents
+- `{'type': 'youtube', 'domain': 'personal'}` - Count YouTube videos in personal domain
+
+**Complex Query Examples:**
+
+1. **Date Range Queries:**
+   ```python
+   # Count documents created after a specific timestamp
+   {"created_at": {"$gt": 1685469600.0}}
+
+   # Count documents created in the last 30 days
+   {"created_at": {"$gte": (datetime.now() - timedelta(days=30)).timestamp()}}
+
+   # Count documents created between two dates
+   {"$and": [
+       {"created_at": {"$gte": 1685469600.0}},
+       {"created_at": {"$lte": 1693152000.0}}
+   ]}
+   ```
+
+2. **Multiple Type Filtering:**
+   ```python
+   # Count notes OR history documents
+   {"$or": [
+       {"type": {"$eq": "notes"}},
+       {"type": {"$eq": "history"}}
+   ]}
+
+   # Count all document types except audio
+   {"type": {"$ne": "audio"}}
+   ```
+
+3. **Domain and Type Combinations:**
+   ```python
+   # Count work-related notes created recently
+   {"$and": [
+       {"domain": {"$eq": "work"}},
+       {"type": {"$eq": "notes"}},
+       {"created_at": {"$gt": 1685469600.0}}
+   ]}
+
+   # Count personal YouTube videos or PDFs
+   {"$and": [
+       {"domain": {"$eq": "personal"}},
+       {"$or": [
+           {"type": {"$eq": "youtube"}},
+           {"type": {"$eq": "pdf"}}
+       ]}
+   ]}
+   ```
+
+4. **Referer and Source Filtering:**
+   ```python
+   # Count documents from a specific referer
+   {"referer": {"$eq": "DciNotes"}}
+
+   # Count documents from multiple referers
+   {"referer": {"$in": ["DciNotes", "ProjectNotes", "MeetingNotes"]}}
+
+   # Count documents with specific source pattern
+   {"source": {"$regex": ".*DciNotes.*"}}
+   ```
+
+5. **Part and Chunk Filtering:**
+   ```python
+   # Count first part of multi-part documents
+   {"part": {"$eq": 1}}
+
+   # Count documents with multiple parts (not first part)
+   {"part": {"$gt": 1}}
+
+   # Count specific part range
+   {"$and": [
+       {"part": {"$gte": 2}},
+       {"part": {"$lte": 5}}
+   ]}
+   ```
+
+6. **Last Accessed Time Filtering:**
+   ```python
+   # Count recently accessed documents (last 7 days)
+   {"last_accessed_at": {"$gte": (datetime.now() - timedelta(days=7)).timestamp()}}
+
+   # Count documents accessed more than 30 days ago
+   {"last_accessed_at": {"$lt": (datetime.now() - timedelta(days=30)).timestamp()}}
+   ```
+
+7. **URL and Main Source Filtering:**
+   ```python
+   # Count documents from specific URL pattern
+   {"url": {"$regex": ".*github.*"}}
+
+   # Count documents with main source
+   {"main_source": {"$exists": True}}
+
+   # Count documents without main source
+   {"main_source": {"$exists": False}}
+   ```
+
+8. **Complex Nested Queries:**
+   ```python
+   # Count work notes created in last 30 days OR personal YouTube videos
+   {"$or": [
+       {"$and": [
+           {"domain": {"$eq": "work"}},
+           {"type": {"$eq": "notes"}},
+           {"created_at": {"$gte": (datetime.now() - timedelta(days=30)).timestamp()}}
+       ]},
+       {"$and": [
+           {"domain": {"$eq": "personal"}},
+           {"type": {"$eq": "youtube"}}
+       ]}
+   ]}
+
+   # Count documents with specific referer pattern AND created recently
+   {"$and": [
+       {"referer": {"$regex": ".*Project.*"}},
+       {"created_at": {"$gte": 1685469600.0}},
+       {"$or": [
+           {"type": {"$eq": "notes"}},
+           {"type": {"$eq": "history"}}
+       ]}
+   ]}
+   ```
+
+**Available Operators:**
+- `$eq`, `$ne` - Equal, Not equal
+- `$gt`, `$gte`, `$lt`, `$lte` - Greater than, Greater or equal, Less than, Less or equal (numeric values only)
+- `$in`, `$nin` - In array, Not in array
+- `$and`, `$or` - Logical operators
+- Shorthand: `{"key": "value"}` is equivalent to `{"key": {"$eq": "value"}}`
+
+**Limitations:**
+- `$regex`, `$exists`, `$contains`, `$like`, `$ilike`, and other pattern matching operators are NOT supported for metadata filtering
+- ChromaDB only supports the basic comparison operators listed above for metadata filtering
+- For pattern matching, use exact matches with `$eq` or `$ne`
+- For field existence, use `$eq` with specific values or `$ne` to exclude values
+- For substring matching, consider using semantic search with the `text` parameter instead of metadata filters
+- Example: Use `search_documents(text="github", limit=10)` instead of `{"url": {"$contains": "github"}}`
+
+**Complex Filtering Limitations:**
+- ChromaDB requires explicit `$and` operator when combining multiple conditions
+- **❌ Invalid**: `{"type": "youtube", "last_accessed_at": {"$gte": 1735689600.0}}`
+- **✅ Valid**: `{"$and": [{"type": {"$eq": "youtube"}}, {"last_accessed_at": {"$gte": 1735689600.0}}]}`
+- For complex date range queries, consider filtering results in Python after the initial search
+- Example: Search for `{"type": "youtube"}` then filter by date in your application code
+
+**Note on Document Filtering:**
+- ChromaDB supports `$contains`, `$not_contains`, and `$regex` for document content filtering
+- This MCP server now exposes both metadata filtering (`filter_metadata`) and content filtering (`filter_content`)
+- Use `filter_content` for exact text matching, `text` parameter for semantic search
         """,
     ] = None,
 ) -> Dict[str, Any]:
