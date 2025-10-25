@@ -11,7 +11,7 @@ import os
 import sys
 
 from dotenv import load_dotenv
-from langchain.text_splitter import TokenTextSplitter
+from langchain_text_splitters import TokenTextSplitter
 
 from lib import datetime_decoder, get_vectorstore, is_same_time
 

@@ -22,12 +22,11 @@ fi
 cd $(dirname "$0") || exit 1
 
 if [ ! -d .venv ]; then
-    python -m venv .venv
-    . .venv/bin/activate
-    pip install -r requirements.txt
-else
-    . .venv/bin/activate
+    echo "Virtual environment not found. Run 'uv sync --all-extras' first." 1>&2
+    exit 1
 fi
+
+. .venv/bin/activate
 
 "$TRANSFORM" "$SRC" "$DST"
 

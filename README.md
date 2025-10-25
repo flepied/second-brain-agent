@@ -14,7 +14,7 @@ Tiago Forte's groundbreaking idea of the Second Brain has revolutionized the way
 
 1. Automated Indexing: No more manually sorting through files! Automatically index the content of your markdown files along with contained links, such as PDF documents, YouTube videos, and web pages.
 
-2. Smart Search Engine: Ask questions about your content, and our AI will provide precise answers, using the robust OpenAI Large Language Model. It’s like having a personal assistant that knows your content inside out!
+2. MCP-Powered Retrieval: Use the built-in Model Context Protocol (MCP) server to pull the most relevant context from your notes and plug it into the LLM or workflow of your choice.
 
 3. Effortless Integration: Whether you follow the Second Brain method or have your own unique way of note-taking, our system seamlessly integrates with your style, helping you harness the true power of your information.
 
@@ -41,29 +41,12 @@ The system takes as input a directory where you store your markdown notes. For e
 
 ```mermaid
 graph TD
-A[Markdown files from your editor]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[Second Brain AI Agent]
+A[Markdown files from your editor]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[AI Agent]
 ```
 
 From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file, it extracts pdf, url, youtube video and transforms them into text. There is some support to extract history data from the markdown files: if there is an `## History` section or the file name contains `History`, the file is split in multiple parts according to `<day> <month> <year>` sections like `### 10 Sep 2023`.
 
 From these text files, [transform_txt.py](transform_txt.py) breaks these text files into chunks, create a vector embeddings and then stores these vector embeddings into a vector database.
-
-The second brain agent uses the vector database to get context for asking the question to the large language model. This process is called [Retrieval-augmented generation (RAG)](https://python.langchain.com/docs/use_cases/question_answering/).
-
-In reality, the process is more complex than a standard RAG. It is analyzing the question and then using a different chain according to the intent:
-
-```mermaid
-flowchart TD
-    A[Question] --> C[/Get Intent/]
-    C --> E[Summary Request] --> EA[/Extract all the chunks/] --> EB[/Summarize chunks/]
-    C --> F[pdf or URL Lookup] --> FA[/Extract URL/]
-    C --> D[Activity report]
-    C --> G[Regular Question]
-    D --> DA[/Get Period metadata/] --> DB[/Get Subject metadata/] --> DC[/Extract Question without time/] --> H[/Extract nearest documents\nfrom the vector database\nfiltered by the metadata/]
-    G --> GA[/Step back question/] --> GB[/Extract nearest documents\nfrom the vector database/]
-    H --> I[/Use the documents as context\nto ask the question to the LLM/]
-    GB --> I
-```
 
 To be able to manipulate dates for activity reports. The system relies on some naming conventions. The first one is filenames containing `History`, `Journal` or `StatusReport` are considered journals with entries in this format: `## 02 Dec 2024` for each date. Other files can have an `## History` section with entries in this format: `### 02 Dec 2024` for each date.
 
@@ -73,11 +56,11 @@ To know which domain to use to filter documents, the second brain agent uses a s
 
 ## MCP Server
 
-The Second Brain Agent now includes an MCP (Model Context Protocol) server that provides programmatic access to the vector database and document retrieval system. This allows other applications to integrate with your second brain without interfacing at the reasoning level.
+The Second Brain Agent relies on an AI Agent using the Second Brain MCP (Model Context Protocol) server that provides programmatic access to the vector database and document retrieval system.
 
 ### MCP Server Features
 
-* **Query Vector Database**: Ask questions and get answers from your indexed content
+* **Retrieve Context**: Use `search_documents` to stream back the most relevant chunks from your notes
 * **Search Documents**: Perform semantic search across your documents with metadata filtering
 * **Document Management**: Get document counts, metadata, and list available domains
 * **Domain-based Search**: Search within specific domains (work, personal, etc.)
@@ -88,19 +71,19 @@ The Second Brain Agent now includes an MCP (Model Context Protocol) server that 
 1. **Install the MCP server**:
 
    ```bash
-   poetry add fastmcp
+   uv add fastmcp
    ```
 
 2. **Run the MCP server**:
 
    ```bash
-   poetry run python mcp_server.py
+   uv run python mcp_server.py
    ```
 
 3. **Test the server**:
 
    ```bash
-   poetry run python test_mcp_server.py
+   uv run python test_mcp_server.py
    ```
 
 4. **Configure MCP clients** using the `mcp_config.json` file:
@@ -124,7 +107,7 @@ The Second Brain Agent now includes an MCP (Model Context Protocol) server that 
 
 ## Installation
 
-You need a Python 3 interpreter, [`poetry`](https://github.com/python-poetry/install.python-poetry.org) and the `inotify-tools` installed. All this has been tested under Fedora Linux 42 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.
+You need a Python 3 interpreter, [`uv`](https://docs.astral.sh/uv/) and the `inotify-tools` installed. All this has been tested under Fedora Linux 42 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.
 
 Get the source code:
 
@@ -138,22 +121,16 @@ Copy the example .env file and edit it to suit your settings:
 $ cp example.env .env
 ```
 
-Install the dependencies using [poetry](https://python-poetry.org/):
+Install the dependencies using [uv](https://docs.astral.sh/uv/):
 
 ```ShellSession
-$ poetry install
+$ uv sync --all-extras
 ```
 
-There is a bug between poetry, torch and pypi, to workaround just do:
+Then to activate the virtual environment, do:
 
 ```ShellSession
-$ poetry run pip install torch
-```
-
-Then to use the created virtualenv, do:
-
-```ShellSession
-$ poetry shell
+$ source .venv/bin/activate
 ```
 
 ### systemd services
@@ -171,58 +148,57 @@ $ journalctl --unit=sba-md.service --user
 $ journalctl --unit=sba-txt.service --user
 ```
 
-### Doing a similarity search with the vector database
+### Using the MCP server
+
+The MCP server is now the single interface to explore your second brain. Once the environment is configured you can:
 
 ```ShellSession
-$ ./similarity.py "What is LangChain?" type=notes
+# Start the MCP server
+$ uv run python mcp_server.py
 ```
 
-### Searching for new connections between notes
-
-Use the vector store to find new connections between notes:
+To experiment without a dedicated MCP client, the repository ships with a small helper script:
 
 ```ShellSession
-$ ./smart_connections.py
+$ uv run python example_mcp_usage.py
 ```
 
-### Launching the web UI
+The script showcases how to call the exposed tools (document search, counts, domains, and recents) and prints sample results in the terminal. Check the output for an example MCP client configuration snippet that you can paste into Cursor or any other MCP-compatible tool.
 
-Launch this command to access the web UI:
+### Command-line helper
+
+Prefer a quick terminal search? Use the CLI wrapper:
 
 ```ShellSession
-$ streamlit run second_brain_agent.py
-  You can now view your Streamlit app in your browser.
-
-  Local URL: http://localhost:8502
-  Network URL: http://192.168.121.112:8502
+$ uv run python qa.py "What did I learn about LangChain last month?" -k 3
+# Filter example: limit to history documents
+$ uv run python qa.py "Summarize last quarter highlights" --filter '{"type": {"$eq": "history"}}'
 ```
 
-Here is an example:
-
-![Screenshot](screenshot.png "Screenshot")
+It prints the top matches with their sources so you can jump straight into the relevant files.
 
 ## Development
 
-Install the extra dependencies using [poetry](https://python-poetry.org/):
+Install the extra dependencies using [uv](https://docs.astral.sh/uv/):
 
 ```ShellSession
-$ poetry install --with test
+$ uv sync --all-extras
 ```
 
 And then run the tests, like this:
 
 ```ShellSession
 # Run all tests (unit + integration)
-$ poetry run pytest
+$ uv run pytest
 
 # Run only unit tests (no external dependencies required)
-$ poetry run pytest -m "not integration"
+$ uv run pytest -m "not integration"
 
 # Run only integration tests (requires vector database)
-$ poetry run pytest -m integration
+$ uv run pytest -m integration
 
 # Run only unit tests (same as above, more explicit)
-$ poetry run pytest -m unit
+$ uv run pytest -m unit
 ```
 
 **Note**: Integration tests require a running vector database and are automatically excluded during pre-commit hooks. Unit tests run without external dependencies and are suitable for CI/CD pipelines.
@@ -250,5 +226,5 @@ This script:
 Before submitting a PR, make sure to activate [pre-commit](https://pre-commit.com/):
 
 ```ShellSession
-poetry run pre-commit install
+uv run pre-commit install
 ```

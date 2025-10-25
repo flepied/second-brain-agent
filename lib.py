@@ -9,20 +9,8 @@ import sys
 import time
 
 import chromadb
-from langchain.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
-from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-
-# pylint: disable=no-name-in-module
-from langchain_openai import OpenAI
-
-from extractors import (  # extract_sentence_no_time,
-    extract_documents,
-    extract_intent,
-    extract_period,
-    extract_step_back,
-)
 
 
 def cleanup_text(text):
@@ -72,11 +60,6 @@ def get_vectorstore():
     return vectorstore
 
 
-def get_indexer():
-    "Get the indexer associated with the vector store"
-    return VectorStoreIndexWrapper(vectorstore=get_vectorstore())
-
-
 def is_same_time(fname, oname):
     "Compare if {fname} and {oname} have the same timestamp"
     ftime = os.stat(fname).st_mtime
@@ -97,163 +80,6 @@ def is_history_filename(fname):
         or fname.find("Journal") != -1
         or fname.find("StatusReport") != -1
     )
-
-
-def local_link(path):
-    "Create a local link to a file"
-    if path.startswith("/"):
-        return f"file://{path}"
-    return path
-
-
-class Agent:
-    "Agent to answer questions"
-
-    def __init__(self):
-        "Initialize the agent"
-        self.vectorstore = get_vectorstore()
-        self.llm = OpenAI(temperature=0)
-        self.chain = RetrievalQAWithSourcesChain.from_llm(
-            llm=self.llm,
-            retriever=self.vectorstore.as_retriever(),
-        )
-
-    def get_documents_desc(self):
-        "Get the document describing the domains from the organization file"
-        try:
-            with open(
-                os.path.join(
-                    os.environ.get("SRCDIR"),
-                    os.environ.get("SBA_ORG_DOC", "SecondBrainOrganization.md"),
-                ),
-                "r",
-                encoding="UTF-8",
-            ) as desc_file:
-                return desc_file.read()
-        except FileNotFoundError:
-            return ""
-
-    def question(self, user_question):
-        "Ask a question and format the answer for text"
-        response = self._get_response(user_question)
-        print(f"{response=}", file=sys.stderr)
-        if (
-            response["sources"] not in ("None.", "N/A", "I don't know.")
-            and len(response["sources"]) > 0
-        ):
-            sources = "- " + "\n- ".join(self._filter_file(self._get_sources(response)))
-            return f"{response['answer']}\nSources:\n{sources}"
-        return response["answer"]
-
-    def html_question(self, user_question):
-        "Ask a question and format the answer for html"
-        response = self._get_response(user_question)
-        if (
-            response["sources"] not in ("None.", "N/A", "I don't know.")
-            and len(response["sources"]) > 0
-        ):
-            sources = "- " + "\n- ".join(
-                [
-                    f'<a href="{local_link(src)}">{src}</a>'
-                    for src in self._get_sources(response)
-                ]
-            )
-            return f"{response['answer']}\nSources:\n{sources}"
-        return response["answer"]
-
-    def _filter_file(self, sources):
-        "filter out file:// at the beginning of the strings"
-        return [src[7:] if src.startswith("file://") else src for src in sources]
-
-    def _get_response(self, user_question):
-        "Get the response from the LLM and vector store"
-        res_intent = extract_intent(user_question, model=self.llm)
-        if res_intent is None or res_intent.intent.lower() == "regular question":
-            return self._regular_question(user_question)
-        if res_intent.intent.lower() == "activity report request":
-            return self._activity_report(user_question)
-        return self._regular_question(user_question)
-
-    def _activity_report(self, user_question):
-        "Answer an activity report request"
-        and_clause = []
-        and_clause.append({"type": {"$eq": "history"}})
-        subject = "Highlight the main events and activities."
-
-        res_dates = extract_period(user_question, model=self.llm)
-        print(res_dates)
-        print()
-
-        if res_dates is not None:
-            start_date = datetime.datetime.combine(
-                res_dates.start_date, datetime.datetime.min.time()
-            ).timestamp()
-            and_clause.append({"last_accessed_at": {"$gte": start_date}})
-
-            end_date = datetime.datetime.combine(
-                res_dates.end_date, datetime.time(23, 59, 59)
-            ).timestamp()
-            and_clause.append({"last_accessed_at": {"$lte": end_date}})
-        else:
-            print(f"No period in the sentence: {user_question}", file=sys.stderr)
-
-        res_doc = extract_documents(
-            user_question, self.get_documents_desc(), model=self.llm
-        )
-
-        # we can have multiple documents so add them with a logical OR
-        or_clause = []
-        for doc in res_doc.document_names:
-            or_clause.append({"domain": {"$eq": doc}})
-        if len(or_clause) > 1:
-            or_clause = {"$or": or_clause}
-        elif len(or_clause) == 1:
-            or_clause = or_clause[0]
-        if or_clause != []:
-            and_clause.append(or_clause)
-
-        if len(and_clause) > 1:
-            where_clause = {"$and": and_clause}
-        else:
-            where_clause = and_clause[0]
-
-        print(f"{subject=} {where_clause=}", file=sys.stderr)
-        search_kwargs = {"filter": where_clause}
-        self.chain = RetrievalQAWithSourcesChain.from_llm(
-            llm=self.llm,
-            retriever=self.vectorstore.as_retriever(search_kwargs=search_kwargs),
-        )
-        res = self.chain.invoke({"question": subject}, where=where_clause)
-        print(f"{res=}", file=sys.stderr)
-        return res
-
-    def _regular_question(self, user_question):
-        "Answer a regular question"
-        res_step_back = extract_step_back(user_question)
-        if res_step_back is not None:
-            print(f"Step back {res_step_back}", file=sys.stderr)
-        res = self.chain.invoke({"question": user_question})
-        return res
-
-    def _get_source(self, source):
-        "Get the url instead of the chunk source"
-        try:
-            return self.vectorstore.get(where={"source": source})["metadatas"][0]["url"]
-        except IndexError:
-            return source
-
-    def _get_sources(self, resp):
-        "Get the url instead of the chunk sources"
-        sources = [self._get_source(source) for source in resp["sources"].split(", ")]
-        return set(sources)
-
-    def _build_filter(self, metadata):
-        "Build the filter for the vector store from the metadata"
-        if metadata is None or len(metadata) == 0:
-            return {}
-        if len(metadata) == 1:
-            return {"filter": metadata}
-        return {"filter": {"$and": [{key: metadata[key]} for key in metadata]}}
 
 
 class ChecksumStore:
