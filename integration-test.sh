@@ -106,17 +106,31 @@ done
 journalctl --user -u sba-txt
 journalctl --user -u sba-txt | grep "Storing .* chunks to the db for metadata=.*'url': 'file://$SRCDIR/langchain.md'"|grep "'type': 'notes'"
 
-# test the vector store
-RES=$(poetry run ./similarity.py "What is langchain?")
-echo "$RES"
-test -n "$RES"
+# test the MCP search tool
+RES=$(poetry run python - <<'PY'
+import asyncio
+import json
+from mcp_server import server
 
-# test the vector store and llm
-RES=$(poetry run ./qa.py "What is langchain?")
+
+async def main() -> None:
+    result = await server.call_tool(
+        "search_documents",
+        {"text": "What is langchain?", "limit": 3},
+    )
+    if isinstance(result, list) and result:
+        payload = json.loads(result[0].text)
+    else:
+        payload = result
+    docs = payload.get("documents", [])
+    print(len(docs))
+
+
+asyncio.run(main())
+PY
+)
 echo "$RES"
-if grep -q "I don't know." <<< "$RES"; then
-    exit 1
-fi
+test "$RES" -gt 0
 
 # Run pytest integration tests with the test data
 echo "*** Running pytest integration tests with test data..."
@@ -137,17 +151,31 @@ done
 $compose logs
 $compose logs | grep -q "Connect to Chroma at: "
 
-# test the vector store
-RES=$(poetry run ./similarity.py "What is langchain?")
-echo "$RES"
-test -n "$RES"
+# test the MCP search tool
+RES=$(poetry run python - <<'PY'
+import asyncio
+import json
+from mcp_server import server
 
-# test the vector store and llm
-RES=$(poetry run ./qa.py "What is langchain?")
+
+async def main() -> None:
+    result = await server.call_tool(
+        "search_documents",
+        {"text": "What is langchain?", "limit": 3},
+    )
+    if isinstance(result, list) and result:
+        payload = json.loads(result[0].text)
+    else:
+        payload = result
+    docs = payload.get("documents", [])
+    print(len(docs))
+
+
+asyncio.run(main())
+PY
+)
 echo "$RES"
-if grep -q "I don't know." <<< "$RES"; then
-    exit 1
-fi
+test "$RES" -gt 0
 
 # wait a bit to be sure to have all the logs in different seconds
 # for the vacuum cleaning process to work
@@ -241,8 +269,22 @@ journalctl --user -u sba-txt
 journalctl --user -u sba-txt | grep -q "Removing .* related files to $TOP/.second-brain/Text/langchain.json:"
 
 # be sure we don't have anymore document in the vector database
-poetry run ./similarity.py ""
-poetry run ./similarity.py "" | wc -l | grep "0"
+RES=$(poetry run python - <<'PY'
+import asyncio
+from mcp_server import get_document_count
+
+
+async def main() -> None:
+    # get_document_count is a FunctionTool, access the underlying function via .fn
+    result = await get_document_count.fn()
+    print(result.get("document_count", 0))
+
+
+asyncio.run(main())
+PY
+)
+echo "$RES"
+test "$RES" -eq 0
 
 # Run pytest integration tests
 echo "*** Running pytest integration tests..."
