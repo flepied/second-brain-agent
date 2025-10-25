@@ -5,12 +5,6 @@ fail_fast: true
 
 repos:
 
-  - repo: https://github.com/floatingpurr/sync_with_poetry
-    rev: "1.2.1"                # the revision or tag to clone at
-    hooks:
-      - id: sync_with_poetry
-        args: []                # optional args
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
@@ -18,6 +12,8 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
+        args: ['--maxkb=1024', '--enforce-all']
+        exclude: '^uv\.lock$'
 
   - repo: https://github.com/psf/black
     rev: 23.3.0
@@ -37,7 +33,7 @@ repos:
     hooks:
       - id: codespell
         args:
-          - "--exclude-file=poetry.lock"
+          - "--exclude-file=uv.lock"
           - "-L"
           - "referers,referer,nin"
 
@@ -49,29 +45,19 @@ repos:
 
   - repo: local
     hooks:
-      - id: poetry-check
-        name: Poetry check
-        description: run poetry check to validate config
-        entry: poetry check
-        language: python
-        pass_filenames: false
-        files: ^(.*/)?pyproject.toml$
-
-  - repo: local
-    hooks:
       - id: inject-chromadb-version
         name: inject chromadb version into compose.yaml
         entry: make compose.yaml
         language: python
         pass_filenames: false
-        files: ^poetry.lock$
+        files: ^uv.lock$
 
   - repo: local
     hooks:
       - id: pytest
         name: Pytest checks
-        entry: poetry run pytest -m "not integration"
-        language: python
+        entry: bash -c 'cd "$PWD" && uv run pytest -m "not integration"'
+        language: system
         pass_filenames: false
         files: ".*\\.py$"
 
@@ -79,7 +65,7 @@ repos:
     hooks:
       - id: pylint
         name: Pylint checks
-        entry: poetry run pylint --disable=C0301
+        entry: bash -c 'cd "$PWD" && uv run pylint --disable=C0301 "$@"' --
         pass_filenames: true
         language: system
         files: ".*\\.py$"

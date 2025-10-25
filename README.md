@@ -56,7 +56,7 @@ To know which domain to use to filter documents, the second brain agent uses a s
 
 ## MCP Server
 
-The Second Brain Agent relies on an AI Agent using the Second Branin MCP (Model Context Protocol) server that provides programmatic access to the vector database and document retrieval system.
+The Second Brain Agent relies on an AI Agent using the Second Brain MCP (Model Context Protocol) server that provides programmatic access to the vector database and document retrieval system.
 
 ### MCP Server Features
 
@@ -71,19 +71,19 @@ The Second Brain Agent relies on an AI Agent using the Second Branin MCP (Model 
 1. **Install the MCP server**:
 
    ```bash
-   poetry add fastmcp
+   uv add fastmcp
    ```
 
 2. **Run the MCP server**:
 
    ```bash
-   poetry run python mcp_server.py
+   uv run python mcp_server.py
    ```
 
 3. **Test the server**:
 
    ```bash
-   poetry run python test_mcp_server.py
+   uv run python test_mcp_server.py
    ```
 
 4. **Configure MCP clients** using the `mcp_config.json` file:
@@ -107,7 +107,7 @@ The Second Brain Agent relies on an AI Agent using the Second Branin MCP (Model 
 
 ## Installation
 
-You need a Python 3 interpreter, [`poetry`](https://github.com/python-poetry/install.python-poetry.org) and the `inotify-tools` installed. All this has been tested under Fedora Linux 42 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.
+You need a Python 3 interpreter, [`uv`](https://docs.astral.sh/uv/) and the `inotify-tools` installed. All this has been tested under Fedora Linux 42 on my laptop and Ubuntu latest in the CI workflows. Let me know if it works on your system.
 
 Get the source code:
 
@@ -121,22 +121,16 @@ Copy the example .env file and edit it to suit your settings:
 $ cp example.env .env
 ```
 
-Install the dependencies using [poetry](https://python-poetry.org/):
+Install the dependencies using [uv](https://docs.astral.sh/uv/):
 
 ```ShellSession
-$ poetry install
+$ uv sync --all-extras
 ```
 
-There is a bug between poetry, torch and pypi, to workaround just do:
+Then to activate the virtual environment, do:
 
 ```ShellSession
-$ poetry run pip install torch
-```
-
-Then to use the created virtualenv, do:
-
-```ShellSession
-$ poetry shell
+$ source .venv/bin/activate
 ```
 
 ### systemd services
@@ -160,13 +154,13 @@ The MCP server is now the single interface to explore your second brain. Once th
 
 ```ShellSession
 # Start the MCP server
-$ poetry run python mcp_server.py
+$ uv run python mcp_server.py
 ```
 
 To experiment without a dedicated MCP client, the repository ships with a small helper script:
 
 ```ShellSession
-$ poetry run python example_mcp_usage.py
+$ uv run python example_mcp_usage.py
 ```
 
 The script showcases how to call the exposed tools (document search, counts, domains, and recents) and prints sample results in the terminal. Check the output for an example MCP client configuration snippet that you can paste into Cursor or any other MCP-compatible tool.
@@ -176,35 +170,35 @@ The script showcases how to call the exposed tools (document search, counts, dom
 Prefer a quick terminal search? Use the CLI wrapper:
 
 ```ShellSession
-$ poetry run python qa.py "What did I learn about LangChain last month?" -k 3
+$ uv run python qa.py "What did I learn about LangChain last month?" -k 3
 # Filter example: limit to history documents
-$ poetry run python qa.py "Summarize last quarter highlights" --filter '{"type": {"$eq": "history"}}'
+$ uv run python qa.py "Summarize last quarter highlights" --filter '{"type": {"$eq": "history"}}'
 ```
 
 It prints the top matches with their sources so you can jump straight into the relevant files.
 
 ## Development
 
-Install the extra dependencies using [poetry](https://python-poetry.org/):
+Install the extra dependencies using [uv](https://docs.astral.sh/uv/):
 
 ```ShellSession
-$ poetry install --with test
+$ uv sync --all-extras
 ```
 
 And then run the tests, like this:
 
 ```ShellSession
 # Run all tests (unit + integration)
-$ poetry run pytest
+$ uv run pytest
 
 # Run only unit tests (no external dependencies required)
-$ poetry run pytest -m "not integration"
+$ uv run pytest -m "not integration"
 
 # Run only integration tests (requires vector database)
-$ poetry run pytest -m integration
+$ uv run pytest -m integration
 
 # Run only unit tests (same as above, more explicit)
-$ poetry run pytest -m unit
+$ uv run pytest -m unit
 ```
 
 **Note**: Integration tests require a running vector database and are automatically excluded during pre-commit hooks. Unit tests run without external dependencies and are suitable for CI/CD pipelines.
@@ -232,5 +226,5 @@ This script:
 Before submitting a PR, make sure to activate [pre-commit](https://pre-commit.com/):
 
 ```ShellSession
-poetry run pre-commit install
+uv run pre-commit install
 ```

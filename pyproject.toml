@@ -1,53 +1,58 @@
-[tool.poetry]
+[project]
 name = "second-brain-agent"
 version = "0.7.0"
 description = "Second Brain AI Agent"
-authors = ["Frederic Lepied <flepied@gmail.com>"]
-license = "GPL 3.0"
+authors = [
+    {name = "Frederic Lepied", email = "flepied@gmail.com"}
+]
+license = "GPL-3.0"
 readme = "README.md"
-repository = "https://www.github.com/flepied/second-brain-agent"
-package-mode = false
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "beautifulsoup4",
+    "chromadb>=1.1.1",
+    "huggingface-hub",
+    "langchain",
+    "langchain-community",
+    "langchain-chroma>=0.2.5",
+    "langchain-openai",
+    "langchain-huggingface",
+    "langchain-text-splitters",
+    "openai",
+    "pymupdf",
+    "python-dotenv",
+    "sentence-transformers",
+    "tiktoken",
+    "unstructured",
+    "youtube-transcript-api",
+    "yt-dlp",
+    "pydub",
+    "markdown",
+    "pydantic>=2.5.3",
+    "assemblyai>=0.17.0",
+    "fastmcp",
+]
 
-[tool.poetry.group.dev.dependencies]
-pyproject-pre-commit = "^0.0.17"
+[project.optional-dependencies]
+dev = [
+    "pyproject-pre-commit>=0.0.17",
+]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "pylint",
+    "pre-commit",
+]
+
+[project.urls]
+Repository = "https://github.com/flepied/second-brain-agent"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.poetry.dependencies]  # main dependency group
-python = ">=3.10,<3.12"
-
-bs4 = "*"
-chromadb = ">=0.4"
-huggingface_hub = "*"
-langchain = "*"
-langchain-community = "*"
-langchain-chroma = "^0.2.5"
-langchain-openai = "*"
-langchain-huggingface = "*"
-openai = "*"
-pymupdf = "*"
-python-dotenv = "*"
-sentence-transformers = "*"
-tiktoken = "*"
-unstructured = "*"
-youtube-transcript-api = "*"
-yt-dlp = "*"
-pydub = "*"
-markdown = "*"
-# Updated for fastmcp compatibility
-pydantic = ">=2.5.3"
-assemblyai = "^0.17.0"
-fastmcp = "^2.11.0"
-
-[tool.poetry.group.test]  # This part can be left out
-
-[tool.poetry.group.test.dependencies]
-pytest = "*"
-pytest-asyncio = "*"
-pylint = "*"
-pre-commit = "*"
+[tool.setuptools]
+py-modules = []
 
 [tool.pytest.ini_options]
 markers = [

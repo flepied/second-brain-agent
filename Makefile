@@ -2,15 +2,15 @@ SHELL := /bin/bash
 
 all: compose.yaml
 
-compose.yaml: poetry.lock
+compose.yaml: uv.lock
 	set -x && \
 	. .venv/bin/activate && \
-	VER=$$(pip3 freeze|grep chromadb==|sed "s/.*==//") && \
-	pip3 freeze && \
+	VER=$$(uv pip freeze|grep chromadb==|sed "s/.*==//") && \
+	uv pip freeze && \
 	test -n "$$VER" && \
 	echo "$$VER" && \
 	sed -i -e "s@ghcr.io/chroma-core/chroma:.*@ghcr.io/chroma-core/chroma:$$VER@" compose.yaml
 
-poetry.lock: pyproject.toml
-	poetry lock
-	touch poetry.lock
+uv.lock: pyproject.toml
+	uv sync --all-extras
+	touch uv.lock

@@ -18,17 +18,16 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install poetry
-        run: |
-          set -ex
-          curl -sSL https://install.python-poetry.org | python3 -
-          poetry --version
-
       - name: Install python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          cache: 'poetry'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Cache pre-commit environment
         uses: actions/cache@v3
@@ -42,9 +41,8 @@ jobs:
       - name: Run pre-commit checks
         run: |
           set -ex
-          poetry install --with test
-          poetry run pip3 install torch
-          poetry run pre-commit run -a --show-diff-on-failure -v
+          uv sync --all-extras
+          uv run pre-commit run -a --show-diff-on-failure -v
 
       - name: Run integration tests
         env:
