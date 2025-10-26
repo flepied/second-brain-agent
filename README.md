@@ -44,7 +44,17 @@ graph TD
 A[Markdown files from your editor]-->B[Text files from markdown and pointers]-->C[Text Chunks]-->D[Vector Database]-->E[AI Agent]
 ```
 
-From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file, it extracts pdf, url, youtube video and transforms them into text. There is some support to extract history data from the markdown files: if there is an `## History` section or the file name contains `History`, the file is split in multiple parts according to `<day> <month> <year>` sections like `### 10 Sep 2023`.
+From a markdown file, [transform_md.py](transform_md.py) extracts the text from the markdown file, then from the links inside the markdown file, it extracts pdf, url, youtube video and transforms them into text.
+
+**Supported link formats:**
+
+* **Local PDFs**: `~/Documents/report.pdf` or `/home/user/papers/research.pdf`
+* **Remote PDFs**: `https://arxiv.org/pdf/2305.04091.pdf`
+* **Web pages**: `https://example.com/article`
+* **YouTube videos**: `https://www.youtube.com/watch?v=VIDEO_ID`
+* **File URLs**: `file:///path/to/document.pdf`
+
+There is some support to extract history data from the markdown files: if there is an `## History` section or the file name contains `History`, the file is split in multiple parts according to `<day> <month> <year>` sections like `### 10 Sep 2023`.
 
 From these text files, [transform_txt.py](transform_txt.py) breaks these text files into chunks, create a vector embeddings and then stores these vector embeddings into a vector database.
 

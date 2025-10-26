@@ -33,7 +33,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, _errors
 from lib import ChecksumStore, DateTimeEncoder, is_history_filename, is_same_time
 
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
-HTTP_REGEX = re.compile(r"https://[^ ]+|file://[^ ]+|~?/.+")
+HTTP_REGEX = re.compile(r"https://[^ ]+|file://[^ ]+|~?/[^ ()]+")
 IGNORED_REGEX = re.compile(r"^https://(docs.google.com|source.redhat.com)")
 
 _YOUTUBE_ERROR_MESSAGES: list[
