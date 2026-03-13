@@ -16,6 +16,7 @@ import re
 import shutil
 import sys
 from typing import Optional
+from urllib.parse import unquote
 
 import assemblyai as aai
 import yt_dlp
@@ -35,6 +36,7 @@ from lib import ChecksumStore, DateTimeEncoder, is_history_filename, is_same_tim
 YOUTUBE_REGEX = re.compile(r"https://www.youtube.com/embed/([^/\"]+)")
 HTTP_REGEX = re.compile(r"https://[^ ]+|file://[^ ]+|~?/[^ ()]+")
 IGNORED_REGEX = re.compile(r"^https://(docs.google.com|source.redhat.com)")
+URL_REQUEST_TIMEOUT = 20
 
 _YOUTUBE_ERROR_MESSAGES: list[
     tuple[type[_errors.YouTubeTranscriptApiException], str]
@@ -242,7 +244,11 @@ def process_url_line(basename, line, directory, last_accessed_at):
             try:
                 file_type = "pdf"
                 if url.startswith("file://"):
-                    loader = PyMuPDFLoader(url[7:])
+                    pdf_path = unquote(url[7:])
+                    if not os.path.exists(pdf_path):
+                        print(f"missing local pdf {pdf_path}", file=sys.stderr)
+                        return True
+                    loader = PyMuPDFLoader(pdf_path)
                 else:
                     loader = PyMuPDFLoader(url)
                 output = loader.load()
@@ -262,7 +268,10 @@ def process_url_line(basename, line, directory, last_accessed_at):
         else:
             file_type = "web"
             output = UnstructuredURLLoader(
-                [url], continue_on_failure=True, encoding="UTF-8"
+                [url],
+                continue_on_failure=True,
+                encoding="UTF-8",
+                request_timeout=URL_REQUEST_TIMEOUT,
             ).load()
         if output:
             save_content(

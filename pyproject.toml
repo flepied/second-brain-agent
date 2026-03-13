@@ -54,6 +54,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 py-modules = []
 
+[tool.uv.sources]
+chromadb = { path = "../chroma", editable = true }
+
 [tool.pytest.ini_options]
 markers = [
     "integration: marks tests as integration tests (requires external services like vector database)",

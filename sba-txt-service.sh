@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 DIR="$(dirname "$0")"
 
 cd "$DIR" || exit 1
@@ -19,22 +21,23 @@ fi
 
 mkdir -p "$DSTDIR/Chunk" "$DSTDIR/Db"
 
-if type -p podman-compose; then
+if command -v podman-compose >/dev/null 2>&1; then
     compose=podman-compose
 else
     compose=docker-compose
 fi
 
-set -e
+cleanup() {
+    "$compose" down --remove-orphans >/dev/null 2>&1 || true
+}
 
-# Check if container is already running and stop it if needed
-if $compose ps | grep -q "Up"; then
-    echo "Container is already running, stopping it first..."
-    $compose down
-fi
+trap cleanup EXIT INT TERM
 
-$compose up -d
-$compose ps
+# Always reset the compose stack managed by this service before starting it
+"$compose" down --remove-orphans >/dev/null 2>&1 || true
+
+"$compose" up -d --build
+"$compose" ps
 
 ./monitor.sh ./transform_txt.py "$DSTDIR/Text" "$DSTDIR"
 

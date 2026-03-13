@@ -6,12 +6,14 @@ This script tests the MCP server functionality using the proper MCP client patte
 """
 
 import asyncio
+import inspect
 import json
 import os
 import sys
 from datetime import datetime, timedelta
 
 import pytest
+from chromadb.api.models.Collection import Collection
 from dotenv import load_dotenv
 from fastmcp import Client
 
@@ -27,6 +29,33 @@ def parse_tool_result(result):
         content_text = result.content[0].text
         return json.loads(content_text)
     pytest.fail("No content returned from tool")
+
+
+def test_chromadb_client_exposes_server_side_sorting():
+    """Ensure the local Python client exposes the forked get(order_by=...) API."""
+    assert "/perso/chroma/" in inspect.getsourcefile(Collection)
+    parameters = inspect.signature(Collection.get).parameters
+    assert "order_by" in parameters
+    assert "order" in parameters
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_descriptions_explain_sorting_behavior():
+    """Ensure MCP tool metadata distinguishes similarity search from recency sorting."""
+    async with Client(server) as client:
+        tools = await client.list_tools()
+
+    tool_map = {tool.name: tool for tool in tools}
+    assert "search_documents" in tool_map
+    assert "get_recent_documents" in tool_map
+
+    search_description = tool_map["search_documents"].description or ""
+    recent_description = tool_map["get_recent_documents"].description or ""
+
+    assert "similarity score" in search_description.lower()
+    assert "get_recent_documents" in search_description
+    assert "last_accessed_at" in recent_description
+    assert "server-side" in recent_description.lower()
 
 
 @pytest.mark.integration
@@ -107,6 +136,22 @@ async def test_basic_queries():
         result = await client.call_tool(
             "search_documents",
             {"text": "", "limit": 5, "filter_metadata": {"type": "notes"}},
+        )
+        assert not result.is_error
+        parsed_result = parse_tool_result(result)
+        assert "documents" in parsed_result
+        print(f" {len(parsed_result['documents'])} documents found. ✅")
+
+        # Test documents accessed more than 30 days ago
+        print("2. Testing documents accessed >30 days ago...", end="")
+        thirty_days_ago = (datetime.now() - timedelta(days=30)).timestamp()
+        result = await client.call_tool(
+            "search_documents",
+            {
+                "text": "",
+                "limit": 5,
+                "filter_metadata": {"last_accessed_at": {"$lt": thirty_days_ago}},
+            },
         )
         assert not result.is_error
         parsed_result = parse_tool_result(result)
@@ -429,21 +474,32 @@ async def test_last_accessed_time_filtering():
         assert "documents" in parsed_result
         print(f" {len(parsed_result['documents'])} documents found. ✅")
 
-        # Test documents accessed more than 30 days ago
-        print("2. Testing documents accessed >30 days ago...", end="")
-        thirty_days_ago = (datetime.now() - timedelta(days=30)).timestamp()
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_get_recent_documents_is_sorted_by_last_accessed_desc():
+    """Test that get_recent_documents uses server-side last_accessed_at sorting."""
+    print("\nTesting Recent Document Ordering...")
+    print("=" * 30)
+
+    async with Client(server) as client:
         result = await client.call_tool(
-            "search_documents",
-            {
-                "text": "",
-                "limit": 5,
-                "filter_metadata": {"last_accessed_at": {"$lt": thirty_days_ago}},
-            },
+            "get_recent_documents",
+            {"days": 36500, "limit": 10},
         )
         assert not result.is_error
         parsed_result = parse_tool_result(result)
-        assert "documents" in parsed_result
-        print(f" {len(parsed_result['documents'])} documents found. ✅")
+
+    assert "recent_documents" in parsed_result
+    documents = parsed_result["recent_documents"]
+    assert len(documents) > 0
+
+    last_accessed_values = [
+        doc["metadata"]["last_accessed_at"]
+        for doc in documents
+        if "last_accessed_at" in doc["metadata"]
+    ]
+    assert last_accessed_values == sorted(last_accessed_values, reverse=True)
 
 
 @pytest.mark.integration

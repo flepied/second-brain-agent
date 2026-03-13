@@ -248,8 +248,9 @@ async def search_documents(
         - Find all documents: `search_documents()` or `search_documents(filter_metadata={})`
         - Search for "python" in content: `search_documents(text="python")`
 
-        **IMPORTANT: Results are sorted by similarity score (most similar first), NOT by date or other criteria.**
-        To get the most recent documents, you'll need to sort them in your application code after retrieval.
+        **IMPORTANT: Semantic search results are sorted by similarity score (most similar first).**
+        This tool does not reorder semantic matches by date. For server-side date sorting,
+        use `get_recent_documents()`, which orders documents by `last_accessed_at` in Chroma.
 
         **Date Field Availability:**
         - `last_accessed_at`: File modification time of the source markdown file when processed
@@ -262,17 +263,16 @@ async def search_documents(
           - **For older documents**: May not be set (use `last_accessed_at` instead)
         - **Recommendation**: Use `last_accessed_at` as the most reliable date field for all documents
 
-        **Example: Get most recent YouTube videos:**
+        **Example: Search recent YouTube videos semantically:**
         ```python
-        # Get all YouTube videos (sorted by similarity)
-        results = search_documents(filter_metadata={"type": "youtube"})
+        # Semantic search keeps similarity ordering
+        results = search_documents(
+            text="vector databases",
+            filter_metadata={"type": "youtube"},
+            limit=10,
+        )
 
-        # Sort by last_accessed_at (most reliable date field for all documents)
-        documents = results['documents']
-        sorted_docs = sorted(documents,
-                            key=lambda x: x['metadata'].get('last_accessed_at', 0),
-                            reverse=True)
-        most_recent = sorted_docs[0]  # Most recent YouTube video
+        # For plain recency ordering, use get_recent_documents(days=30, limit=10)
         ```
 
         Returns:
@@ -622,6 +622,9 @@ async def get_recent_documents(
     """
     Get recently accessed documents from the vector database.
 
+    This tool uses Chroma server-side sorting on `last_accessed_at`, ordered from
+    most recent to oldest before applying the limit.
+
     Returns:
         Dictionary containing recent documents
     """
@@ -632,28 +635,32 @@ async def get_recent_documents(
         cutoff_time = datetime.now() - timedelta(days=days)
         cutoff_timestamp = cutoff_time.timestamp()
 
-        # Get recent documents (using async method)
-        all_docs = await vectorstore.aget_by_ids([])
+        recent_results = await asyncio.to_thread(
+            vectorstore._collection.get,
+            where={"last_accessed_at": {"$gte": cutoff_timestamp}},
+            limit=limit,
+            include=["metadatas", "documents"],
+            order_by="last_accessed_at",
+            order="desc",
+        )
+
         recent_docs = []
+        for document, metadata in zip(
+            recent_results.get("documents", []),
+            recent_results.get("metadatas", []),
+            strict=False,
+        ):
+            last_accessed = metadata.get("last_accessed_at")
+            if isinstance(last_accessed, str):
+                last_accessed = datetime.fromisoformat(last_accessed).timestamp()
 
-        for i, metadata in enumerate(all_docs["metadatas"]):
-            if "last_accessed_at" in metadata:
-                last_accessed = metadata["last_accessed_at"]
-                if isinstance(last_accessed, str):
-                    last_accessed = datetime.fromisoformat(last_accessed).timestamp()
-
-                if last_accessed >= cutoff_timestamp:
-                    recent_docs.append(
-                        {
-                            "content": all_docs["documents"][i],
-                            "metadata": metadata,
-                            "last_accessed": last_accessed,
-                        }
-                    )
-
-        # Sort by last accessed time and limit results
-        recent_docs.sort(key=lambda x: x["last_accessed"], reverse=True)
-        recent_docs = recent_docs[:limit]
+            recent_docs.append(
+                {
+                    "content": document,
+                    "metadata": metadata,
+                    "last_accessed": last_accessed,
+                }
+            )
 
         return {
             "recent_documents": recent_docs,

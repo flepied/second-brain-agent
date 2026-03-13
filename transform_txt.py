@@ -13,7 +13,7 @@ import sys
 from dotenv import load_dotenv
 from langchain_text_splitters import TokenTextSplitter
 
-from lib import datetime_decoder, get_vectorstore, is_same_time
+from lib import datetime_decoder, get_vectorstore, is_same_time, sanitize_metadata
 
 # limit chunk size to 1000 as we retrieve 4 documents by default and
 # the token limit is 4096
@@ -72,13 +72,7 @@ def validate_and_extract_url(fname, basename, out_dir):
     if "metadata" not in data:
         print(f"Could not find metadata in {fname}", file=sys.stderr)
         return False, None
-    metadata = data["metadata"]
-    # convert the datetime to timestamp because chromadb does not
-    # support datetime
-    for key, val in metadata.items():
-        # check if the value is a datetime
-        if isinstance(val, datetime.datetime):
-            metadata[key] = val.timestamp()
+    metadata = sanitize_metadata(data["metadata"])
     return metadata, data["text"]
 
 
@@ -126,7 +120,11 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
         print(f"Unable to split doc {fname}", file=sys.stderr)
     else:
         print(f"Storing {len(texts)} chunks to the db for {metadata=}", file=sys.stderr)
-        res_ids = indexer.add_texts(texts, metadatas, ids=ids)
+        try:
+            res_ids = indexer.add_texts(texts, metadatas, ids=ids)
+        except Exception as exc:  # pylint: disable=broad-except
+            print(f"Failed to index {fname}: {exc}", file=sys.stderr)
+            return
         print(f"ids={res_ids}", file=sys.stderr)
 
 

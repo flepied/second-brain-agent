@@ -93,7 +93,7 @@ The Second Brain Agent relies on an AI Agent using the Second Brain MCP (Model C
 3. **Test the server**:
 
    ```bash
-   uv run python test_mcp_server.py
+   make test
    ```
 
 4. **Configure MCP clients** using the `mcp_config.json` file:
@@ -189,26 +189,26 @@ It prints the top matches with their sources so you can jump straight into the r
 
 ## Development
 
-Install the extra dependencies using [uv](https://docs.astral.sh/uv/):
+Install the test dependencies using [uv](https://docs.astral.sh/uv/):
 
 ```ShellSession
-$ uv sync --all-extras
+$ uv sync --extra test
 ```
 
 And then run the tests, like this:
 
 ```ShellSession
+# Sync the test environment
+$ make sync-test
+
 # Run all tests (unit + integration)
-$ uv run pytest
+$ make test
 
 # Run only unit tests (no external dependencies required)
-$ uv run pytest -m "not integration"
+$ make test-unit
 
 # Run only integration tests (requires vector database)
-$ uv run pytest -m integration
-
-# Run only unit tests (same as above, more explicit)
-$ uv run pytest -m unit
+$ make test-integration
 ```
 
 **Note**: Integration tests require a running vector database and are automatically excluded during pre-commit hooks. Unit tests run without external dependencies and are suitable for CI/CD pipelines.

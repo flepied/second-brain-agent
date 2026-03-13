@@ -29,6 +29,38 @@ def cleanup_text(text):
     return text
 
 
+def sanitize_metadata(metadata):
+    """Normalize metadata keys and values to types accepted by Chroma."""
+    cleaned = {}
+    for key, val in metadata.items():
+        if val is None:
+            continue
+
+        clean_key = re.sub(r"\W+", "_", str(key).strip().lower()).strip("_")
+        if not clean_key:
+            clean_key = "metadata"
+        elif clean_key[0].isdigit():
+            clean_key = f"metadata_{clean_key}"
+
+        if isinstance(val, datetime.datetime):
+            clean_val = val.timestamp()
+        elif isinstance(val, (str, int, float, bool)):
+            clean_val = val
+        else:
+            continue
+
+        if clean_key in cleaned and cleaned[clean_key] != clean_val:
+            suffix = 2
+            candidate = f"{clean_key}_{suffix}"
+            while candidate in cleaned:
+                suffix += 1
+                candidate = f"{clean_key}_{suffix}"
+            clean_key = candidate
+
+        cleaned[clean_key] = clean_val
+    return cleaned
+
+
 def get_embeddings():
     "Get the vector embeddings for text"
     return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
