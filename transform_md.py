@@ -142,6 +142,7 @@ def _try_fetch_transcript(
         transcript_path,
         "\n".join(entry.text for entry in transcript),
         url=f"https://www.youtube.com/watch/{video_id}",
+        domain=extract_domain(basename),
         referer=basename,
         type="youtube",
         last_accessed_at=last_accessed_at,
@@ -177,6 +178,7 @@ def _download_with_whisper(
         transcript_path,
         "\n".join(doc.page_content for doc in docs),
         url=f"https://www.youtube.com/watch/{video_id}",
+        domain=extract_domain(basename),
         referer=basename,
         type="youtube",
         last_accessed_at=last_accessed_at,
@@ -278,6 +280,7 @@ def process_url_line(basename, line, directory, last_accessed_at):
                 output_path,
                 "\n".join([x.page_content for x in output]),
                 url=url,
+                domain=extract_domain(basename),
                 referer=basename,
                 type=file_type,
                 last_accessed_at=last_accessed_at,
@@ -329,6 +332,7 @@ def process_mp3_line(basename, line, directory, last_accessed_at):
                 output_path,
                 "\n".join([x.page_content for x in output]),
                 url=url,
+                domain=extract_domain(basename),
                 referer=basename,
                 type="audio",
                 last_accessed_at=last_accessed_at,
@@ -514,6 +518,8 @@ def write_output_file(md_file, out_dir, metadata):
     metadata["last_accessed_at"] = last_accessed_at
     if "url" not in metadata:
         metadata["url"] = f"file://{md_file}"
+    if "domain" not in metadata:
+        metadata["domain"] = extract_domain(basename)
     if "type" not in metadata:
         metadata["type"] = "notes"
     print(f"saving {md_file=} with {metadata=}", file=sys.stderr)

@@ -7,13 +7,13 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Annotated, Any, Dict, Optional
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 
 from lib import get_vectorstore
-
 # Load environment variables
 load_dotenv()
 
@@ -605,6 +605,54 @@ async def get_domains() -> Dict[str, Any]:
             if domain:
                 domains.add(domain)
         return {"domains": list(domains)}
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+
+@server.tool()
+async def get_domain_inventory() -> Dict[str, Any]:
+    """
+    Retrieve a sorted inventory of discovered domains to help maintain the
+    organization document.
+
+    Returns:
+        Dictionary containing the configured organization document reference,
+        the sorted domain list, and a simple markdown checklist snippet that can
+        be pasted into the organization document while classifying domains.
+    """
+    try:
+        vectorstore = get_vectorstore()
+
+        results = await asyncio.to_thread(
+            vectorstore.get,
+            include=["metadatas"],
+        )
+
+        domains = sorted(
+            {
+                metadata.get("domain")
+                for metadata in results.get("metadatas", [])
+                if metadata and metadata.get("domain")
+            },
+            key=str.casefold,
+        )
+
+        org_doc_path = Path(SRCDIR).expanduser() / SBA_ORG_DOC
+        checklist = "\n".join(f"- [ ] {domain}" for domain in domains)
+
+        return {
+            "organization_document": {
+                "name": SBA_ORG_DOC,
+                "path": str(org_doc_path),
+            },
+            "domain_count": len(domains),
+            "domains": domains,
+            "checklist_markdown": checklist,
+            "timestamp": datetime.now().isoformat(),
+        }
     except Exception as e:  # pylint: disable=broad-exception-caught
         return {
             "error": str(e),

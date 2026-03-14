@@ -20,6 +20,7 @@ from fastmcp import Client
 # Add the current directory to the path so we can import our modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import mcp_server
 from mcp_server import server
 
 
@@ -56,6 +57,43 @@ async def test_mcp_tool_descriptions_explain_sorting_behavior():
     assert "get_recent_documents" in search_description
     assert "last_accessed_at" in recent_description
     assert "server-side" in recent_description.lower()
+
+
+@pytest.mark.asyncio
+async def test_get_domain_inventory_returns_sorted_domains_and_org_doc(monkeypatch):
+    """Ensure the organization-editing domain inventory is stable and complete."""
+
+    class FakeVectorStore:
+        def get(self, include=None):
+            assert include == ["metadatas"]
+            return {
+                "metadatas": [
+                    {"domain": "Work"},
+                    {"domain": "Home"},
+                    {"domain": "work"},
+                    {"domain": "Trading"},
+                    {"other": "ignored"},
+                    None,
+                    {"domain": "Home"},
+                ]
+            }
+
+    monkeypatch.setattr(mcp_server, "SBA_ORG_DOC", "SecondBrainOrganization.md")
+    monkeypatch.setattr(mcp_server, "get_vectorstore", lambda: FakeVectorStore())
+
+    async with Client(server) as client:
+        result = await client.call_tool("get_domain_inventory", {})
+
+    assert not result.is_error
+    parsed_result = parse_tool_result(result)
+    assert parsed_result["organization_document"] == {
+        "name": "SecondBrainOrganization.md",
+        "path": os.path.expanduser("~/Notes/SecondBrainOrganization.md"),
+    }
+    assert parsed_result["domain_count"] == 4
+    assert parsed_result["domains"] == ["Home", "Trading", "Work", "work"]
+    assert parsed_result["checklist_markdown"] == "- [ ] Home\n- [ ] Trading\n- [ ] Work\n- [ ] work"
+    assert "timestamp" in parsed_result
 
 
 @pytest.mark.integration
