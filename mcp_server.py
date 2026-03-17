@@ -238,6 +238,25 @@ async def search_documents(
 **Note:** Content filtering searches within the document text content, not metadata.
         """,
     ] = None,
+    order_by: Annotated[
+        Optional[str],
+        """Optional metadata field used for server-side ordering on metadata-only searches.
+
+**Supported usage:**
+- Works when `text=""` because Chroma can sort `get(...)` results server-side
+- Recommended fields: `last_accessed_at`, `created_at`, `referer`, `type`, `domain`
+
+**Important limitation:**
+- When `text` is non-empty, `search_documents` uses semantic similarity search and results
+  stay ordered by similarity score. `order_by` cannot be combined with semantic ranking.
+- For recency ordering, either call `search_documents(text="", order_by="last_accessed_at")`
+  with metadata filters only, or use `get_recent_documents()`
+        """,
+    ] = None,
+    order: Annotated[
+        str,
+        "Sort direction for `order_by` on metadata-only searches: `asc` or `desc`.",
+    ] = "desc",
 ) -> Dict[str, Any]:
     """
         Search for documents in the vector database using semantic similarity. The documents are split pieces if they contained an history and then each piece is split into chunks, and the search is performed on these chunks.
@@ -249,8 +268,10 @@ async def search_documents(
         - Search for "python" in content: `search_documents(text="python")`
 
         **IMPORTANT: Semantic search results are sorted by similarity score (most similar first).**
-        This tool does not reorder semantic matches by date. For server-side date sorting,
-        use `get_recent_documents()`, which orders documents by `last_accessed_at` in Chroma.
+        If you set `order_by`, it is only applied when `text=""` and the query runs as a metadata/content
+        retrieval. Semantic matches with non-empty `text` cannot also be server-side sorted by metadata.
+        For server-side date sorting, use `search_documents(text="", order_by="last_accessed_at")`
+        or `get_recent_documents()`.
 
         **Date Field Availability:**
         - `last_accessed_at`: File modification time of the source markdown file when processed
@@ -273,6 +294,17 @@ async def search_documents(
         )
 
         # For plain recency ordering, use get_recent_documents(days=30, limit=10)
+        ```
+
+        **Example: Metadata-only search ordered by recency:**
+        ```python
+        results = search_documents(
+            text="",
+            filter_metadata={"type": "youtube"},
+            order_by="last_accessed_at",
+            order="desc",
+            limit=10,
+        )
         ```
 
         Returns:
@@ -369,6 +401,46 @@ async def search_documents(
     try:
         vectorstore = get_vectorstore()
 
+        if order not in {"asc", "desc"}:
+            raise ValueError("order must be either 'asc' or 'desc'")
+
+        if order_by and text:
+            raise ValueError(
+                "order_by is only supported when text is empty; semantic search remains ordered by similarity score"
+            )
+
+        if order_by:
+            get_kwargs = {
+                "where": filter_metadata,
+                "where_document": filter_content,
+                "limit": limit,
+                "include": ["metadatas", "documents"],
+                "order_by": order_by,
+                "order": order,
+            }
+            results = await asyncio.to_thread(vectorstore._collection.get, **get_kwargs)
+
+            documents = []
+            for document, metadata in zip(
+                results.get("documents", []),
+                results.get("metadatas", []),
+                strict=False,
+            ):
+                documents.append(
+                    {
+                        "content": document,
+                        "metadata": metadata,
+                    }
+                )
+
+            return {
+                "documents": documents,
+                "total_results": len(documents),
+                "timestamp": datetime.now().isoformat(),
+                "order_by": order_by,
+                "order": order,
+            }
+
         # Build search kwargs
         search_kwargs = {"k": limit}
         if filter_metadata:
@@ -397,6 +469,8 @@ async def search_documents(
             "documents": documents,
             "total_results": len(documents),
             "timestamp": datetime.now().isoformat(),
+            "order_by": None,
+            "order": None,
         }
     except Exception as e:  # pylint: disable=broad-exception-caught
         return {

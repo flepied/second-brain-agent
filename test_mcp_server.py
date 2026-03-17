@@ -60,6 +60,81 @@ async def test_mcp_tool_descriptions_explain_sorting_behavior():
 
 
 @pytest.mark.asyncio
+async def test_search_documents_supports_server_side_ordering_for_metadata_only(
+    monkeypatch,
+):
+    """Metadata-only searches should use Chroma's sorted get(...) path."""
+
+    class FakeCollection:
+        def get(
+            self,
+            where=None,
+            where_document=None,
+            limit=None,
+            include=None,
+            order_by=None,
+            order=None,
+        ):
+            assert where == {"type": "youtube"}
+            assert where_document is None
+            assert limit == 2
+            assert include == ["metadatas", "documents"]
+            assert order_by == "last_accessed_at"
+            assert order == "desc"
+            return {
+                "documents": ["newer doc", "older doc"],
+                "metadatas": [
+                    {"last_accessed_at": 20, "type": "youtube"},
+                    {"last_accessed_at": 10, "type": "youtube"},
+                ],
+            }
+
+    class FakeVectorStore:
+        def __init__(self):
+            self._collection = FakeCollection()
+
+    monkeypatch.setattr(mcp_server, "get_vectorstore", lambda: FakeVectorStore())
+
+    parsed_result = await mcp_server.search_documents.fn(
+        text="",
+        limit=2,
+        filter_metadata={"type": "youtube"},
+        order_by="last_accessed_at",
+        order="desc",
+    )
+
+    assert parsed_result["order_by"] == "last_accessed_at"
+    assert parsed_result["order"] == "desc"
+    assert [doc["content"] for doc in parsed_result["documents"]] == [
+        "newer doc",
+        "older doc",
+    ]
+    assert [
+        doc["metadata"]["last_accessed_at"] for doc in parsed_result["documents"]
+    ] == [20, 10]
+
+
+@pytest.mark.asyncio
+async def test_search_documents_rejects_ordering_for_semantic_search(monkeypatch):
+    """Semantic similarity search should not accept metadata ordering hints."""
+
+    class FakeVectorStore:
+        async def asimilarity_search_with_relevance_scores(self, *_args, **_kwargs):
+            pytest.fail("semantic search should not be called when order_by is invalid")
+
+    monkeypatch.setattr(mcp_server, "get_vectorstore", lambda: FakeVectorStore())
+
+    parsed_result = await mcp_server.search_documents.fn(
+        text="python",
+        limit=2,
+        order_by="last_accessed_at",
+    )
+
+    assert "error" in parsed_result
+    assert "only supported when text is empty" in parsed_result["error"]
+
+
+@pytest.mark.asyncio
 async def test_get_domain_inventory_returns_sorted_domains_and_org_doc(monkeypatch):
     """Ensure the organization-editing domain inventory is stable and complete."""
 

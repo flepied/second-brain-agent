@@ -29,6 +29,12 @@ def get_splitter():
     return splitter
 
 
+def has_indexed_chunks(fname: str, indexer) -> bool:
+    "Return whether the vector store already contains chunks for this source file."
+    results = indexer.get(where={"main_source": {"$eq": fname}}, include=[])
+    return len(results.get("ids", [])) > 0
+
+
 def process_chunk(  # pylint: disable=R0913,R0917
     chunk, metadata, fname, basename, number, out_dir
 ):
@@ -55,14 +61,19 @@ def process_chunk(  # pylint: disable=R0913,R0917
     return chunk_metadata, chunk_id
 
 
-def validate_and_extract_url(fname, basename, out_dir):
-    "Validate that the file name is ending in .json and is not the same date as the first chunk"
+def validate_and_extract_url(fname, basename, out_dir, indexer):
+    "Validate that the file name is ending in .json and only skip unchanged files when the DB is in sync."
     if not fname.endswith(".json"):
         print(f"Ignoring non json file {fname}", file=sys.stderr)
         return False, None
     oname = os.path.join(out_dir, "Chunk", basename + "-0001.txt")
     if is_same_time(fname, oname):
-        return False, None
+        if has_indexed_chunks(fname, indexer):
+            return False, None
+        print(
+            f"Reindexing {fname} because chunk files exist but DB entries are missing",
+            file=sys.stderr,
+        )
     with open(fname, encoding="utf-8") as in_stream:
         try:
             data = json.load(in_stream, object_hook=datetime_decoder)
@@ -100,7 +111,7 @@ def process_file(fname: str, out_dir: str, indexer, splitter):
         print(f"File {fname} does not exist anymore", file=sys.stderr)
         remove_related_files(fname, indexer, out_dir)
         return
-    metadata, content = validate_and_extract_url(fname, basename, out_dir)
+    metadata, content = validate_and_extract_url(fname, basename, out_dir, indexer)
     if metadata is False:
         return
     metadatas = []
