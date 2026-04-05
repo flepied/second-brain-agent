@@ -142,6 +142,10 @@ Python package directly from a sibling checkout at `../chroma/chromadb` so local
 development can reuse the Chroma Python sources without building the native
 Chroma package. The actual Chroma server still runs in Docker.
 
+The Chroma container persists its database under `/chroma/chroma`, so
+[`compose.yaml`](compose.yaml) bind-mounts `$DSTDIR/Db` there. If that mount
+target changes, `sba-txt` will rebuild the vector database on the next start.
+
 Then to activate the virtual environment, do:
 
 ```ShellSession

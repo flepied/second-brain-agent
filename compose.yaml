@@ -11,7 +11,8 @@ services:
     build:
       context: ../chroma
     volumes:
-      - $DSTDIR/Db:/data:z
+      # The local Chroma server persists under /chroma/chroma, not /data.
+      - $DSTDIR/Db:/chroma/chroma:z
     ports:
       - 8000:8000
     networks:

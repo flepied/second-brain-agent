@@ -29,10 +29,24 @@ def get_splitter():
     return splitter
 
 
-def has_indexed_chunks(fname: str, indexer) -> bool:
-    "Return whether the vector store already contains chunks for this source file."
+def has_indexed_chunks(fname: str, basename: str, out_dir: str, indexer) -> bool:
+    """Return whether the vector store already contains chunks for this source file.
+
+    Prefer the current `main_source` metadata, but also recognize legacy rows that
+    predate that field by checking the first chunk id and source path.
+    """
     results = indexer.get(where={"main_source": {"$eq": fname}}, include=[])
-    return len(results.get("ids", [])) > 0
+    if len(results.get("ids", [])) > 0:
+        return True
+
+    first_chunk_id = f"{basename}-0001.txt"
+    legacy_results = indexer.get(ids=[first_chunk_id], include=[])
+    if len(legacy_results.get("ids", [])) > 0:
+        return True
+
+    first_chunk_path = os.path.join(out_dir, "Chunk", first_chunk_id)
+    legacy_results = indexer.get(where={"source": {"$eq": first_chunk_path}}, include=[])
+    return len(legacy_results.get("ids", [])) > 0
 
 
 def process_chunk(  # pylint: disable=R0913,R0917
@@ -68,7 +82,7 @@ def validate_and_extract_url(fname, basename, out_dir, indexer):
         return False, None
     oname = os.path.join(out_dir, "Chunk", basename + "-0001.txt")
     if is_same_time(fname, oname):
-        if has_indexed_chunks(fname, indexer):
+        if has_indexed_chunks(fname, basename, out_dir, indexer):
             return False, None
         print(
             f"Reindexing {fname} because chunk files exist but DB entries are missing",
