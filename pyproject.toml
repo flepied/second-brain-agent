@@ -9,21 +9,45 @@ license = "GPL-3.0"
 readme = "README.md"
 requires-python = ">=3.10,<3.12"
 dependencies = [
+    "bcrypt>=4.0.1",
     "beautifulsoup4",
-    "chromadb>=1.1.1",
+    "fastapi>=0.115.9",
     "huggingface-hub",
+    "httpx>=0.27.0",
+    "importlib-resources",
+    "jsonschema>=4.19.0",
+    "kubernetes>=28.1.0",
     "langchain",
     "langchain-community",
-    "langchain-chroma>=0.2.5",
     "langchain-openai",
     "langchain-huggingface",
     "langchain-text-splitters",
+    "mmh3>=4.0.1",
+    "numpy>=1.22.5",
     "openai",
+    "onnxruntime>=1.14.1",
+    "opentelemetry-api>=1.2.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.2.0",
+    "opentelemetry-instrumentation-fastapi>=0.41b0",
+    "opentelemetry-sdk>=1.2.0",
+    "orjson>=3.9.12",
+    "overrides>=7.3.1",
+    "protobuf>=4.25.3",
+    "pybase64>=1.4.1",
+    "pypika>=0.48.9",
+    "pydantic-settings>=2.0",
     "pymupdf",
     "python-dotenv",
+    "pyyaml>=6.0.0",
+    "rich>=10.11.0",
     "sentence-transformers",
+    "tokenizers>=0.13.2",
+    "tqdm>=4.65.0",
+    "typer>=0.9.0",
+    "typing_extensions>=4.5.0",
     "tiktoken",
     "unstructured",
+    "uvicorn[standard]>=0.18.3",
     "youtube-transcript-api",
     "yt-dlp",
     "pydub",
@@ -52,10 +76,7 @@ requires = ["setuptools>=40.8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = []
-
-[tool.uv.sources]
-chromadb = { path = "../chroma", editable = true }
+packages = ["chromadb"]
 
 [tool.pytest.ini_options]
 markers = [

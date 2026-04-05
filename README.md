@@ -137,6 +137,11 @@ Install the dependencies using [uv](https://docs.astral.sh/uv/):
 $ uv sync --all-extras
 ```
 
+`chromadb` is intentionally not installed through `uv`. This repository loads the
+Python package directly from a sibling checkout at `../chroma/chromadb` so local
+development can reuse the Chroma Python sources without building the native
+Chroma package. The actual Chroma server still runs in Docker.
+
 Then to activate the virtual environment, do:
 
 ```ShellSession
